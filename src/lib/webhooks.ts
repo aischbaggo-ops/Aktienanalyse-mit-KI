@@ -9,10 +9,7 @@ export interface SymbolSearchResult {
 
 export async function searchSymbols(query: string): Promise<SymbolSearchResult[]> {
   const url = `${SYMBOL_SEARCH_WEBHOOK_URL}?q=${encodeURIComponent(query)}`
-  const res = await fetch(url, {
-    method: 'GET',
-    headers: { 'ngrok-skip-browser-warning': 'true' },
-  })
+  const res = await fetch(url, { method: 'GET' })
   if (!res.ok) {
     throw new Error(`Symbol-Suche fehlgeschlagen (${res.status})`)
   }
@@ -44,10 +41,7 @@ export interface AnalyseResponse {
 export async function requestAnalyse(payload: AnalyseRequestPayload): Promise<AnalyseResponse> {
   const res = await fetch(ANALYSE_WEBHOOK_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'ngrok-skip-browser-warning': 'true',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
   if (!res.ok) {

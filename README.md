@@ -1,6 +1,6 @@
 # KI Aktienanalyse — Frontend
 
-React + TypeScript + Vite + Tailwind CSS Frontend für die KI-Aktienanalyse. Nutzt Supabase für Auth/Datenbank/Realtime und zwei n8n-Webhooks für Symbol-Suche und Analyse-Anfragen.
+React + TypeScript + Vite + Tailwind CSS Frontend für die KI-Aktienanalyse. Nutzt Supabase für Auth/Datenbank/Realtime sowie zwei Supabase Edge Functions für Symbol-Suche und Analyse-Anfragen.
 
 ## ⚠️ Hinweis zu diesem Build
 
@@ -24,7 +24,7 @@ Auf dieser Maschine ist **kein Node.js/npm installiert**, daher konnten `npm ins
    VITE_SUPABASE_ANON_KEY=<dein-key>
    ```
 
-   Niemals den `service_role`-Key hier eintragen — der gehört ausschließlich ins Backend (n8n).
+   Niemals den `service_role`-Key hier eintragen — der gehört ausschließlich in die Supabase Edge Functions (Backend).
 
 4. **Dev-Server starten:**
 
@@ -87,5 +87,3 @@ Beide sind für dieses Projekt kostenlos und deployen automatisch bei jedem Push
 3. Build command: `npm run build`, Publish directory: `dist`.
 4. Environment Variables identisch zu oben unter *Site settings → Environment variables* eintragen.
 5. Deploy.
-
-**Wichtig:** Der n8n-Webhook läuft aktuell über eine `ngrok-free.dev`-URL. Diese Tunnel-URLs ändern sich bei jedem Neustart von ngrok (außer bei einem reservierten/statischen Domain-Plan). Falls sich die Webhook-URL ändert, muss sie sowohl lokal in `.env` als auch in den Environment Variables von Vercel/Netlify aktualisiert werden.
