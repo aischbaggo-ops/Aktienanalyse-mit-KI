@@ -1,0 +1,16 @@
+node_modules
+dist
+build
+.env
+.env.local
+*.local
+.DS_Store
+
+# Supabase CLI lokale Zustandsordner (falls je aus diesem Ordner ausgefuehrt)
+.branches
+.temp
+
+# TypeScript build-Artefakte (von "tsc -b" generiert, keine Quelldateien)
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
