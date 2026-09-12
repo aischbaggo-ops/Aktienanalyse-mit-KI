@@ -18,17 +18,20 @@ export function KiEinschaetzungTab({ analysis }: { analysis: StockAnalysis }) {
 
   const verfahren: { label: string; wert: string; sub?: string }[] = [
     {
-      label: 'Eigenes Modell (Erwartungswert)',
+      label:
+        prognose?.verfuegbar && prognose.zieljahr != null
+          ? `Eigenes Modell (Erwartungswert bis ${prognose.zieljahr})`
+          : 'Eigenes Modell (Erwartungswert)',
       wert: prognose?.verfuegbar && prognose.erwartungswert != null ? fmtMoney(prognose.erwartungswert, currency) : dash(),
     },
     {
       label: 'Analysten-Kursziel (Konsens)',
       wert: analystConsensus != null ? fmtMoney(analystConsensus.target, currency) : dash(),
-      sub: analystConsensus != null ? `Ø aus ${analystConsensus.count} Schätzungen, letztes Quartal` : undefined,
+      sub: analystConsensus != null ? `Ø aus ${analystConsensus.count} Schätzungen, 12-Monats-Horizont` : undefined,
     },
     { label: 'Peer-Bewertung', wert: dash() },
     {
-      label: 'DCF',
+      label: 'DCF (heutiger Fair Value)',
       wert: dcf?.dcf != null ? fmtMoney(dcf.dcf, dcf['Stock Price'] != null ? currency : '') : dash(),
     },
   ]
@@ -79,6 +82,10 @@ export function KiEinschaetzungTab({ analysis }: { analysis: StockAnalysis }) {
             Peer-Bewertung ist noch nicht angebunden (fehlende Datenquelle).
           </p>
         )}
+        <p className="mt-2 text-xs text-memo-grau">
+          Die vier Verfahren beziehen sich auf unterschiedliche Zeithorizonte (siehe Beschriftung) und
+          sind daher nicht direkt gegeneinander aufrechenbar.
+        </p>
       </div>
 
       {bankRatings.length > 0 && (
