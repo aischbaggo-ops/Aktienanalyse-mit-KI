@@ -1,6 +1,6 @@
 import type { StockAnalysis } from '../../types/database'
 import { fmtCompact, dash } from '../../lib/memoFormat'
-import { SeriesBarChart, SeriesDualBarChart, SeriesMultiLineChart, FundamentalHeroChart } from '../../components/memo/Charts'
+import { SeriesBarChart, MultiLineChart } from '../../components/memo/Charts'
 
 function hasRealData(values: (number | null)[]): boolean {
   return values.some((v) => v != null && v !== 0)
@@ -36,9 +36,14 @@ export function FundamentalTab({ analysis }: { analysis: StockAnalysis }) {
         <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-memo-muted">
           Bruttogewinn / EBIT / EBITDA / Nettogewinn
         </h3>
-        <FundamentalHeroChart
+        <MultiLineChart
           years={fs.years}
           height={240}
+          width={800}
+          marginLeft={64}
+          marginRight={150}
+          showYAxis
+          showNameInEndLabel
           formatValue={(v) => fmtCompact(v, currency)}
           series={[
             { label: 'Bruttogewinn', values: fs.grossProfit },
@@ -66,18 +71,22 @@ export function FundamentalTab({ analysis }: { analysis: StockAnalysis }) {
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <p className="mb-1.5 text-xs text-memo-muted">Cashflow (operativ + FCF)</p>
-            <SeriesDualBarChart
+            <MultiLineChart
               years={fs.years}
-              seriesA={fs.operatingCashFlow}
-              seriesB={fs.freeCashFlow}
-              labelA="operativ"
-              labelB="FCF"
+              marginRight={64}
+              formatValue={(v) => fmtCompact(v, currency)}
+              series={[
+                { label: 'operativ', values: fs.operatingCashFlow },
+                { label: 'FCF', values: fs.freeCashFlow },
+              ]}
             />
           </div>
           <div>
             <p className="mb-1.5 text-xs text-memo-muted">Margen (Brutto/Operativ/Netto)</p>
-            <SeriesMultiLineChart
+            <MultiLineChart
               years={fs.years}
+              marginRight={36}
+              formatValue={(v) => `${(v * 100).toFixed(1)}%`}
               series={[
                 { label: 'Brutto', values: fs.grossMargin },
                 { label: 'Operativ', values: fs.operatingMargin },
@@ -93,11 +102,21 @@ export function FundamentalTab({ analysis }: { analysis: StockAnalysis }) {
           )}
           <div>
             <p className="mb-1.5 text-xs text-memo-muted">Aktienanzahl</p>
-            <SeriesBarChart years={fs.years} values={fs.sharesOut} formatValue={(v) => fmtCompact(v)} />
+            <MultiLineChart
+              years={fs.years}
+              marginRight={64}
+              formatValue={(v) => fmtCompact(v)}
+              series={[{ label: 'Aktienanzahl', values: fs.sharesOut }]}
+            />
           </div>
           <div>
             <p className="mb-1.5 text-xs text-memo-muted">Schulden (brutto)</p>
-            <SeriesBarChart years={fs.years} values={fs.totalDebt} formatValue={(v) => fmtCompact(v, currency)} />
+            <MultiLineChart
+              years={fs.years}
+              marginRight={64}
+              formatValue={(v) => fmtCompact(v, currency)}
+              series={[{ label: 'Schulden', values: fs.totalDebt }]}
+            />
           </div>
           {fs.isDividendPayer && (
             <div>

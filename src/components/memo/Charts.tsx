@@ -1,4 +1,4 @@
-import { Fragment, useId } from 'react'
+import { useId, useState } from 'react'
 import type { MonthlyPricePoint, RelativeStrengthPoint, ReturnBar, PrognosePfadPunkt } from '../../types/database'
 
 const COLOR_PLUS = '#7f9482'
@@ -18,8 +18,25 @@ const COLOR_MUTED = '#999999'
 // Groessenhierarchie der jeweiligen Kennzahlen.
 const CATEGORY_LINE_COLORS = [COLOR_INK, '#41545f', '#6d818c', '#9caab2']
 
+// Linienstile je Serie (durchgezogen/gestrichelt/gepunktet/Strich-Punkt) -
+// macht jede Linie auch ohne Farbwahrnehmung eindeutig, zusaetzlich zur Farbe.
+const LINE_DASH_PATTERNS = ['', '7 4', '1.5 3.5', '9 3 2 3']
+
 function EmptyNote({ text }: { text: string }) {
   return <p className="py-8 text-center text-xs text-memo-muted">{text}</p>
+}
+
+// Waehlt eine begrenzte, gleichmaessig verteilte Auswahl an X-Achsen-Ticks -
+// haelt die Beschriftung auch bei 10-20 Datenpunkten lesbar, statt jeden
+// einzelnen Punkt zu beschriften.
+function pickTickIndices(count: number, maxLabels: number): number[] {
+  if (count <= 0) return []
+  if (count <= maxLabels) return Array.from({ length: count }, (_, i) => i)
+  const step = Math.ceil((count - 1) / (maxLabels - 1))
+  const idx: number[] = []
+  for (let i = 0; i < count; i += step) idx.push(i)
+  if (idx[idx.length - 1] !== count - 1) idx.push(count - 1)
+  return idx
 }
 
 /**
@@ -261,60 +278,124 @@ export function SeriesBarChart({
   )
 }
 
+type LineSeries = { label: string; values: (number | null)[] }
+type EndLabel = { i: number; label: string; value: number; x: number; y: number }
+
+function lastValidIndex(values: (number | null)[]): number {
+  for (let i = values.length - 1; i >= 0; i--) if (typeof values[i] === 'number') return i
+  return -1
+}
+
 /**
- * Hero-Chart fuer den Fundamental-Tab: mehrere Kennzahlen (Bruttogewinn/EBIT/
- * EBITDA/Nettogewinn) gleichzeitig als Linien ueber die Zeit, mit Y-Achsen-
- * Gitterlinien und Legende darunter - gleiches Vorbild wie der Kursverlauf-
- * Chart im Quick-Check-Tab (LogPriceChart), nur linear statt log und mit
- * mehreren Serien statt zwei.
+ * Generischer Mehrfach-Linien-Chart fuer Zeitreihen (1-4 Serien) - Vorbild
+ * fuer Farbe/Linienfuehrung ist der Kursverlauf-Chart (LogPriceChart), nur
+ * linear statt log und mit bis zu 4 Serien statt zwei. Jede Serie bekommt
+ * neben der Farbe (CATEGORY_LINE_COLORS) ein eigenes stroke-dasharray
+ * (LINE_DASH_PATTERNS), damit sie auch ohne Farbwahrnehmung unterscheidbar
+ * ist, sowie eine Direktbeschriftung am rechten Linienende (bei zu eng
+ * beieinanderliegenden Werten vertikal versetzt). Bei mehr als einer Serie
+ * ist die Legende darunter klickbar (Serie ein-/ausblenden, ausgeblendete
+ * Eintraege auf 40% Deckkraft). Die X-Achsen-Beschriftung waehlt automatisch
+ * weniger Ticks bei vielen Datenpunkten (siehe pickTickIndices) - bleibt
+ * damit auch bei 10-20 Jahren Historie lesbar.
  */
-export function FundamentalHeroChart({
+export function MultiLineChart({
   years,
   series,
-  height = 220,
+  height = 110,
+  width = 320,
+  marginLeft = 8,
+  marginRight = 70,
+  showYAxis = false,
+  showNameInEndLabel = false,
   formatValue,
 }: {
   years: string[]
-  series: { label: string; values: (number | null)[] }[]
+  series: LineSeries[]
   height?: number
+  width?: number
+  marginLeft?: number
+  marginRight?: number
+  showYAxis?: boolean
+  showNameInEndLabel?: boolean
   formatValue?: (v: number) => string
 }) {
-  const allVals = series.flatMap((s) => s.values).filter((v): v is number => typeof v === 'number')
-  if (allVals.length === 0) return <EmptyNote text="Keine Daten verfügbar." />
+  const [hidden, setHidden] = useState<Set<number>>(() => new Set())
 
-  const width = 800
-  const marginLeft = 64
-  const marginBottom = 22
-  const marginTop = 10
-  const plotW = width - marginLeft - 8
+  const anyData = series.some((s) => s.values.some((v) => typeof v === 'number'))
+  if (!anyData) return <EmptyNote text="Keine Daten verfügbar." />
+
+  const marginBottom = 16
+  const marginTop = 6
+  const plotW = width - marginLeft - marginRight
   const plotH = height - marginTop - marginBottom
 
-  const minV = Math.min(0, ...allVals)
-  const maxV = Math.max(...allVals)
+  const visibleSeries = series.filter((_, i) => !hidden.has(i))
+  const scaleSource = visibleSeries.length > 0 ? visibleSeries : series
+  const scaleVals = scaleSource.flatMap((s) => s.values).filter((v): v is number => typeof v === 'number')
+  const minV = Math.min(0, ...scaleVals)
+  const maxV = Math.max(...scaleVals)
   const span = maxV - minV || 1
 
   const x = (i: number) => marginLeft + (years.length > 1 ? (i / (years.length - 1)) * plotW : plotW / 2)
   const y = (v: number) => marginTop + (1 - (v - minV) / span) * plotH
 
-  const ticks = [0, 1, 2, 3].map((t) => minV + (span * t) / 3)
+  const yTicks = showYAxis ? [0, 1, 2, 3].map((t) => minV + (span * t) / 3) : []
+  const xTickIdx = pickTickIndices(years.length, showYAxis ? 8 : 5)
+  const fontSize = showYAxis ? 10 : 8
+  const lineWidth = showYAxis ? 1.75 : 1.5
+
+  const endLabels: EndLabel[] = series
+    .map((s, i) => {
+      if (hidden.has(i)) return null
+      const li = lastValidIndex(s.values)
+      if (li < 0) return null
+      const v = s.values[li] as number
+      return { i, label: s.label, value: v, x: x(li), y: y(v) }
+    })
+    .filter((e): e is EndLabel => e !== null)
+    .sort((a, b) => a.y - b.y)
+  const minGap = fontSize + 2
+  for (let i = 1; i < endLabels.length; i++) {
+    if (endLabels[i].y - endLabels[i - 1].y < minGap) {
+      endLabels[i].y = endLabels[i - 1].y + minGap
+    }
+  }
+
+  function toggle(i: number) {
+    setHidden((prev) => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i)
+      else next.add(i)
+      return next
+    })
+  }
 
   return (
     <div>
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height }} preserveAspectRatio="none">
-        {ticks.map((t, i) => (
+        {yTicks.map((t, i) => (
           <g key={i}>
-            <line x1={marginLeft} x2={width - 8} y1={y(t)} y2={y(t)} stroke={COLOR_LINE} strokeWidth={1} />
+            <line x1={marginLeft} x2={width - marginRight} y1={y(t)} y2={y(t)} stroke={COLOR_LINE} strokeWidth={1} />
             <text x={marginLeft - 6} y={y(t) + 3} textAnchor="end" fontSize={10} fill={COLOR_MUTED}>
               {formatValue ? formatValue(t) : t.toFixed(0)}
             </text>
           </g>
         ))}
-        {years.map((yr, i) => (
-          <text key={i} x={x(i)} y={height - 4} textAnchor="middle" fontSize={10} fill={COLOR_MUTED}>
-            {yr}
+        {xTickIdx.map((i) => (
+          <text
+            key={i}
+            x={x(i)}
+            y={height - 4}
+            textAnchor={i === 0 ? 'start' : i === years.length - 1 ? 'end' : 'middle'}
+            fontSize={fontSize}
+            fill={COLOR_MUTED}
+          >
+            {showYAxis ? years[i] : years[i]?.slice(2)}
           </text>
         ))}
         {series.map((s, si) => {
+          if (hidden.has(si)) return null
           const segments: string[] = []
           let current: string[] = []
           s.values.forEach((v, i) => {
@@ -327,20 +408,43 @@ export function FundamentalHeroChart({
           })
           if (current.length) segments.push(current.join(' '))
           const color = CATEGORY_LINE_COLORS[si % CATEGORY_LINE_COLORS.length]
-          return segments.map((d, di) => <path key={`${si}-${di}`} d={d} fill="none" stroke={color} strokeWidth={1.75} />)
-        })}
-      </svg>
-      <div className="mt-2 flex flex-wrap gap-4 text-xs text-memo-muted">
-        {series.map((s, i) => (
-          <span key={i}>
-            <span
-              className="mr-1.5 inline-block h-2 w-2 rounded-sm"
-              style={{ backgroundColor: CATEGORY_LINE_COLORS[i % CATEGORY_LINE_COLORS.length] }}
+          const dash = LINE_DASH_PATTERNS[si % LINE_DASH_PATTERNS.length]
+          return segments.map((d, di) => (
+            <path
+              key={`${si}-${di}`}
+              d={d}
+              fill="none"
+              stroke={color}
+              strokeWidth={lineWidth}
+              strokeDasharray={dash || undefined}
             />
-            {s.label}
-          </span>
+          ))
+        })}
+        {endLabels.map((e) => (
+          <text key={e.i} x={e.x + 4} y={e.y + 3} fontSize={fontSize} fill={CATEGORY_LINE_COLORS[e.i % CATEGORY_LINE_COLORS.length]}>
+            {showNameInEndLabel ? `${e.label} ${formatValue ? formatValue(e.value) : e.value}` : formatValue ? formatValue(e.value) : e.value}
+          </text>
         ))}
-      </div>
+      </svg>
+      {series.length > 1 && (
+        <div className="mt-1 flex flex-wrap gap-3 text-[10px] text-memo-muted">
+          {series.map((s, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => toggle(i)}
+              className="flex items-center transition-opacity"
+              style={{ opacity: hidden.has(i) ? 0.4 : 1 }}
+            >
+              <span
+                className="mr-1 inline-block h-2 w-2 rounded-sm"
+                style={{ backgroundColor: CATEGORY_LINE_COLORS[i % CATEGORY_LINE_COLORS.length] }}
+              />
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -420,149 +524,3 @@ export function CorridorChart({ pfad, height = 240 }: { pfad: PrognosePfadPunkt[
   )
 }
 
-/** Zwei gruppierte Balkenserien pro Jahr (z.B. operativer Cashflow + FCF). */
-export function SeriesDualBarChart({
-  years,
-  seriesA,
-  seriesB,
-  labelA,
-  labelB,
-  height = 110,
-}: {
-  years: string[]
-  seriesA: (number | null)[]
-  seriesB: (number | null)[]
-  labelA: string
-  labelB: string
-  height?: number
-}) {
-  const allVals = [...seriesA, ...seriesB].filter((v): v is number => typeof v === 'number')
-  if (allVals.length === 0) return <EmptyNote text="Keine Daten verfügbar." />
-
-  const width = 320
-  const marginLeft = 8
-  const marginBottom = 16
-  const marginTop = 6
-  const plotW = width - marginLeft - 8
-  const zeroY = (height - marginBottom - marginTop) / 2 + marginTop
-  const maxAbs = Math.max(1e-9, ...allVals.map((v) => Math.abs(v)))
-  const groupGap = 6
-  const groupW = plotW / years.length - groupGap
-  const barW = (groupW - 2) / 2
-
-  return (
-    <div>
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height }} preserveAspectRatio="none">
-        <line x1={marginLeft} x2={width - 8} y1={zeroY} y2={zeroY} stroke={COLOR_LINE} strokeWidth={1} />
-        {years.map((yr, i) => {
-          const gx = marginLeft + i * (groupW + groupGap)
-          const a = seriesA[i]
-          const b = seriesB[i]
-          const availH = Math.max(zeroY - marginTop, height - marginBottom - zeroY)
-          return (
-            <Fragment key={i}>
-              {typeof a === 'number' && (
-                <rect
-                  x={gx}
-                  y={a >= 0 ? zeroY - (Math.abs(a) / maxAbs) * availH : zeroY}
-                  width={Math.max(2, barW)}
-                  height={Math.max(1, (Math.abs(a) / maxAbs) * availH)}
-                  fill={COLOR_INK}
-                  opacity={0.75}
-                >
-                  <title>{`${yr} ${labelA}: ${a}`}</title>
-                </rect>
-              )}
-              {typeof b === 'number' && (
-                <rect
-                  x={gx + barW + 2}
-                  y={b >= 0 ? zeroY - (Math.abs(b) / maxAbs) * availH : zeroY}
-                  width={Math.max(2, barW)}
-                  height={Math.max(1, (Math.abs(b) / maxAbs) * availH)}
-                  fill={b >= 0 ? COLOR_PLUS : COLOR_MINUS}
-                >
-                  <title>{`${yr} ${labelB}: ${b}`}</title>
-                </rect>
-              )}
-              <text x={gx + groupW / 2} y={height - 4} textAnchor="middle" fontSize={8} fill={COLOR_MUTED}>
-                {yr.slice(2)}
-              </text>
-            </Fragment>
-          )
-        })}
-      </svg>
-      <div className="mt-1 flex gap-3 text-[10px] text-memo-muted">
-        <span><span className="mr-1 inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: COLOR_INK, opacity: 0.75 }} />{labelA}</span>
-        <span><span className="mr-1 inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: COLOR_PLUS }} />{labelB}</span>
-      </div>
-    </div>
-  )
-}
-
-/** Mehrere Linienserien uebereinander (z.B. Brutto-/Operativ-/Nettomarge). */
-export function SeriesMultiLineChart({
-  years,
-  series,
-  height = 110,
-  isPercent = true,
-}: {
-  years: string[]
-  series: { label: string; values: (number | null)[] }[]
-  height?: number
-  isPercent?: boolean
-}) {
-  const allVals = series.flatMap((s) => s.values).filter((v): v is number => typeof v === 'number')
-  if (allVals.length === 0) return <EmptyNote text="Keine Daten verfügbar." />
-
-  const width = 320
-  const marginLeft = 8
-  const marginBottom = 16
-  const marginTop = 6
-  const plotW = width - marginLeft - 8
-  const plotH = height - marginTop - marginBottom
-  const minV = Math.min(0, ...allVals)
-  const maxV = Math.max(...allVals)
-  const span = maxV - minV || 1
-  const x = (i: number) => marginLeft + (years.length > 1 ? (i / (years.length - 1)) * plotW : plotW / 2)
-  const y = (v: number) => marginTop + (1 - (v - minV) / span) * plotH
-
-  return (
-    <div>
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height }} preserveAspectRatio="none">
-        {series.map((s, si) => {
-          const segments: string[] = []
-          let current: string[] = []
-          s.values.forEach((v, i) => {
-            if (typeof v === 'number') {
-              current.push(`${current.length === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`)
-            } else if (current.length) {
-              segments.push(current.join(' '))
-              current = []
-            }
-          })
-          if (current.length) segments.push(current.join(' '))
-          return segments.map((d, di) => (
-            <path key={`${si}-${di}`} d={d} fill="none" stroke={CATEGORY_LINE_COLORS[si % CATEGORY_LINE_COLORS.length]} strokeWidth={1.5} />
-          ))
-        })}
-        {years.map((yr, i) => (
-          <text key={i} x={x(i)} y={height - 4} textAnchor="middle" fontSize={8} fill={COLOR_MUTED}>
-            {yr.slice(2)}
-          </text>
-        ))}
-      </svg>
-      <div className="mt-1 flex flex-wrap gap-3 text-[10px] text-memo-muted">
-        {series.map((s, i) => (
-          <span key={i}>
-            <span
-              className="mr-1 inline-block h-2 w-2 rounded-sm"
-              style={{ backgroundColor: CATEGORY_LINE_COLORS[i % CATEGORY_LINE_COLORS.length] }}
-            />
-            {s.label}
-          </span>
-        ))}
-      </div>
-      {isPercent && <span className="sr-only">Werte in Prozent</span>}
-    </div>
-  )
-}
