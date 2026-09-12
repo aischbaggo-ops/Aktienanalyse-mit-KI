@@ -137,6 +137,19 @@ export interface SwotData {
   risiken: string[]
 }
 
+export interface AnalystConsensus {
+  target: number
+  count: number
+}
+
+export interface BankRating {
+  company: string
+  grade: string
+  action: string
+  date: string
+  previousGrade: string
+}
+
 export interface ChartData {
   krise?: KrisenFenster[]
   trend?: { wCagrStock: number | null; wCagrIndex: number | null; wVola: number | null }
@@ -148,6 +161,8 @@ export interface ChartData {
   relativeStrength?: RelativeStrengthPoint[]
   returnBars?: ReturnBar[]
   quickCheck?: QuickCheckData
+  analystConsensus?: AnalystConsensus | null
+  bankRatings?: BankRating[]
   [key: string]: unknown
 }
 

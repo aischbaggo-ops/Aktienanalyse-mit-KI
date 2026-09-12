@@ -2,18 +2,30 @@ import type { StockAnalysis } from '../../types/database'
 import { fmtMoney, dash } from '../../lib/memoFormat'
 import { CorridorChart, ProbabilityBar } from '../../components/memo/Charts'
 
+function directionArrow(action: string): string {
+  if (action === 'upgrade') return '↑'
+  if (action === 'downgrade') return '↓'
+  return '–'
+}
+
 export function KiEinschaetzungTab({ analysis }: { analysis: StockAnalysis }) {
   const prognose = analysis.prognose
   const dcf = analysis.bewertung?.dcf
   const swot = analysis.chart_data?.swot
+  const analystConsensus = analysis.chart_data?.analystConsensus
+  const bankRatings = analysis.chart_data?.bankRatings ?? []
   const currency = analysis.currency ?? ''
 
-  const verfahren: { label: string; wert: string }[] = [
+  const verfahren: { label: string; wert: string; sub?: string }[] = [
     {
       label: 'Eigenes Modell (Erwartungswert)',
       wert: prognose?.verfuegbar && prognose.erwartungswert != null ? fmtMoney(prognose.erwartungswert, currency) : dash(),
     },
-    { label: 'Analysten-Kursziel', wert: dash() },
+    {
+      label: 'Analysten-Kursziel (Konsens)',
+      wert: analystConsensus != null ? fmtMoney(analystConsensus.target, currency) : dash(),
+      sub: analystConsensus != null ? `Ø aus ${analystConsensus.count} Schätzungen, letztes Quartal` : undefined,
+    },
     { label: 'Peer-Bewertung', wert: dash() },
     {
       label: 'DCF',
@@ -54,17 +66,46 @@ export function KiEinschaetzungTab({ analysis }: { analysis: StockAnalysis }) {
             {verfahren.map((v) => (
               <tr key={v.label} className="border-b border-memo-line2 last:border-none">
                 <td className="py-2 pr-4 text-memo-ink">{v.label}</td>
-                <td className="py-2 text-right font-analyst text-memo-ink">{v.wert}</td>
+                <td className="py-2 text-right">
+                  <span className="font-analyst text-memo-ink">{v.wert}</span>
+                  {v.sub && <span className="block text-xs text-memo-muted">{v.sub}</span>}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {(verfahren[1].wert === dash() || verfahren[2].wert === dash()) && (
+        {verfahren[2].wert === dash() && (
           <p className="mt-2 text-xs text-memo-grau">
-            Analysten-Kursziel und Peer-Bewertung sind noch nicht angebunden (fehlende Datenquelle).
+            Peer-Bewertung ist noch nicht angebunden (fehlende Datenquelle).
           </p>
         )}
       </div>
+
+      {bankRatings.length > 0 && (
+        <div>
+          <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-memo-muted">
+            Einschätzung führender Banken
+          </h3>
+          <ul className="divide-y divide-memo-line2">
+            {bankRatings.map((r) => (
+              <li key={r.company} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <span className="text-memo-ink">{r.company}</span>
+                <span className="text-right">
+                  <span className="text-memo-ink">
+                    <span className="mr-1.5 text-memo-muted">{directionArrow(r.action)}</span>
+                    {r.grade}
+                  </span>
+                  {(r.action === 'upgrade' || r.action === 'downgrade') && r.previousGrade && (
+                    <span className="block text-xs text-memo-muted">
+                      {r.action === 'upgrade' ? 'hochgestuft von' : 'abgestuft von'} {r.previousGrade}
+                    </span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         <div>
