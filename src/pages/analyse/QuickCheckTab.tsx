@@ -28,6 +28,7 @@ function QuickCheckTile({
 export function QuickCheckTab({ analysis }: { analysis: StockAnalysis }) {
   const qc = analysis.chart_data?.quickCheck
   const priceMonthly = analysis.chart_data?.priceMonthly?.stock ?? []
+  const indexMonthly = analysis.chart_data?.priceMonthly?.index ?? []
   const returnBars = analysis.chart_data?.returnBars ?? []
   const relStrength = analysis.chart_data?.relativeStrength ?? []
   const currency = analysis.currency ?? ''
@@ -61,7 +62,7 @@ export function QuickCheckTab({ analysis }: { analysis: StockAnalysis }) {
         <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-memo-muted">
           Kursverlauf (log. Skala, monatlich)
         </h3>
-        <LogPriceChart data={priceMonthly} />
+        <LogPriceChart data={priceMonthly} indexData={indexMonthly} />
       </div>
 
       <div>

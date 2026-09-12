@@ -14,8 +14,21 @@ function EmptyNote({ text }: { text: string }) {
   return <p className="py-8 text-center text-xs text-memo-muted">{text}</p>
 }
 
-/** Kursverlauf, logarithmische Skala, gesamte Monats-Historie. */
-export function LogPriceChart({ data, height = 220 }: { data: MonthlyPricePoint[]; height?: number }) {
+/**
+ * Kursverlauf, logarithmische Skala, gesamte Monats-Historie.
+ * `indexData` (optional): S&P-500-Monatsschlusskurse ueber denselben Zeitraum,
+ * wird auf den Startwert der Aktie normiert (skaliert), damit beide Linien
+ * auf derselben Preisskala direkt vergleichbar sind - kein eigener Massstab.
+ */
+export function LogPriceChart({
+  data,
+  indexData,
+  height = 220,
+}: {
+  data: MonthlyPricePoint[]
+  indexData?: MonthlyPricePoint[]
+  height?: number
+}) {
   const gid = useId()
   if (!data || data.length < 2) return <EmptyNote text="Keine ausreichende Kurshistorie verfügbar." />
 
@@ -26,9 +39,23 @@ export function LogPriceChart({ data, height = 220 }: { data: MonthlyPricePoint[
   const plotW = width - marginLeft - 8
   const plotH = height - marginTop - marginBottom
 
+  let indexNormalized: (number | null)[] | null = null
+  if (indexData && indexData.length > 0) {
+    const indexByMonth = new Map(indexData.map((d) => [d.date.slice(0, 7), d.close]))
+    const baseIndexClose = indexByMonth.get(data[0].date.slice(0, 7))
+    if (baseIndexClose) {
+      const scale = data[0].close / baseIndexClose
+      indexNormalized = data.map((d) => {
+        const idxClose = indexByMonth.get(d.date.slice(0, 7))
+        return idxClose != null ? idxClose * scale : null
+      })
+    }
+  }
+
   const logs = data.map((d) => Math.log(d.close))
-  const minLog = Math.min(...logs)
-  const maxLog = Math.max(...logs)
+  const indexLogVals = (indexNormalized ?? []).filter((v): v is number => v != null).map((v) => Math.log(v))
+  const minLog = Math.min(...logs, ...indexLogVals)
+  const maxLog = Math.max(...logs, ...indexLogVals)
   const span = maxLog - minLog || 1
 
   const x = (i: number) => marginLeft + (i / (data.length - 1)) * plotW
@@ -36,32 +63,63 @@ export function LogPriceChart({ data, height = 220 }: { data: MonthlyPricePoint[
 
   const pathD = data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(Math.log(d.close)).toFixed(1)}`).join(' ')
 
+  const indexPathSegments: string[] = []
+  if (indexNormalized) {
+    let current: string[] = []
+    indexNormalized.forEach((v, i) => {
+      if (v != null) {
+        current.push(`${current.length === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(Math.log(v)).toFixed(1)}`)
+      } else if (current.length) {
+        indexPathSegments.push(current.join(' '))
+        current = []
+      }
+    })
+    if (current.length) indexPathSegments.push(current.join(' '))
+  }
+
   // 4 Referenzlinien inkl. Min/Max
   const ticks = [0, 1, 2, 3].map((t) => minLog + (span * t) / 3)
   const yearTicks = [0, Math.floor((data.length - 1) / 2), data.length - 1]
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height }} preserveAspectRatio="none">
-      <defs>
-        <clipPath id={`${gid}-clip`}>
-          <rect x={marginLeft} y={marginTop} width={plotW} height={plotH} />
-        </clipPath>
-      </defs>
-      {ticks.map((t, i) => (
-        <g key={i}>
-          <line x1={marginLeft} x2={width - 8} y1={y(t)} y2={y(t)} stroke={COLOR_LINE} strokeWidth={1} />
-          <text x={marginLeft - 6} y={y(t) + 3} textAnchor="end" fontSize={10} fill={COLOR_MUTED}>
-            {Math.exp(t).toFixed(0)}
+    <div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height }} preserveAspectRatio="none">
+        <defs>
+          <clipPath id={`${gid}-clip`}>
+            <rect x={marginLeft} y={marginTop} width={plotW} height={plotH} />
+          </clipPath>
+        </defs>
+        {ticks.map((t, i) => (
+          <g key={i}>
+            <line x1={marginLeft} x2={width - 8} y1={y(t)} y2={y(t)} stroke={COLOR_LINE} strokeWidth={1} />
+            <text x={marginLeft - 6} y={y(t) + 3} textAnchor="end" fontSize={10} fill={COLOR_MUTED}>
+              {Math.exp(t).toFixed(0)}
+            </text>
+          </g>
+        ))}
+        {yearTicks.map((i, idx) => (
+          <text key={idx} x={x(i)} y={height - 4} textAnchor={idx === 0 ? 'start' : idx === yearTicks.length - 1 ? 'end' : 'middle'} fontSize={10} fill={COLOR_MUTED}>
+            {data[i].date.slice(0, 7)}
           </text>
-        </g>
-      ))}
-      {yearTicks.map((i, idx) => (
-        <text key={idx} x={x(i)} y={height - 4} textAnchor={idx === 0 ? 'start' : idx === yearTicks.length - 1 ? 'end' : 'middle'} fontSize={10} fill={COLOR_MUTED}>
-          {data[i].date.slice(0, 7)}
-        </text>
-      ))}
-      <path d={pathD} fill="none" stroke={COLOR_INK} strokeWidth={1.75} clipPath={`url(#${gid}-clip)`} />
-    </svg>
+        ))}
+        {indexPathSegments.map((d, i) => (
+          <path key={i} d={d} fill="none" stroke={COLOR_MUTED} strokeWidth={1} opacity={0.85} clipPath={`url(#${gid}-clip)`} />
+        ))}
+        <path d={pathD} fill="none" stroke={COLOR_INK} strokeWidth={1.75} clipPath={`url(#${gid}-clip)`} />
+      </svg>
+      {indexNormalized && (
+        <div className="mt-1 flex flex-wrap gap-3 text-[10px] text-memo-muted">
+          <span>
+            <span className="mr-1 inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: COLOR_INK }} />
+            Kurs
+          </span>
+          <span>
+            <span className="mr-1 inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: COLOR_MUTED }} />
+            S&amp;P 500 (auf Startkurs normiert)
+          </span>
+        </div>
+      )}
+    </div>
   )
 }
 
