@@ -27,6 +27,8 @@ export function ampelColor(ampel: string | null | undefined): string {
       return '#eab308'
     case 'rot':
       return '#ef4444'
+    case 'grau':
+      return '#9CA3AF'
     default:
       return '#64748b'
   }
@@ -40,6 +42,8 @@ export function ampelRgb(ampel: string | null | undefined): [number, number, num
       return [234, 179, 8]
     case 'rot':
       return [239, 68, 68]
+    case 'grau':
+      return [156, 163, 175]
     default:
       return [100, 116, 139]
   }

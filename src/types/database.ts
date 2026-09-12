@@ -1,5 +1,5 @@
 export type AnalysisStatus = 'pending' | 'running' | 'done' | 'error'
-export type Ampel = 'gruen' | 'gelb' | 'rot' | 'na'
+export type Ampel = 'gruen' | 'gelb' | 'rot' | 'grau'
 
 export interface CriterionEntry {
   dimension: string
@@ -22,14 +22,55 @@ export interface DcfData {
   [key: string]: unknown
 }
 
+export interface ValuationMetric {
+  value: number | null
+  label: string
+}
+
+export interface ValuationData {
+  verfuegbar: boolean
+  hinweis?: string
+  market_cap?: number
+  ev?: number
+  kgv?: ValuationMetric
+  kcv?: ValuationMetric
+  ev_umsatz?: ValuationMetric
+}
+
 export interface BewertungData {
   dcf?: DcfData | null
   currency?: string | null
   methode?: string | null
+  valuation?: ValuationData
   [key: string]: unknown
 }
 
+export interface PrognoseSzenario {
+  ziel: number
+  jahresrendite: number
+  gesamtrendite: number
+  fair_value_heute: number
+  wahrscheinlichkeit: number
+}
+
+export interface PrognosePfadPunkt {
+  jahr: number
+  baer: number | null
+  basis: number | null
+  bull: number | null
+}
+
 export interface PrognoseData {
+  verfuegbar: boolean
+  hinweis?: string
+  zieljahr?: number
+  jahre_bis_zieljahr?: number
+  aktueller_kurs?: number
+  baer?: PrognoseSzenario | null
+  basis?: PrognoseSzenario | null
+  bull?: PrognoseSzenario | null
+  erwartungswert?: number | null
+  pfad?: PrognosePfadPunkt[]
   [key: string]: unknown
 }
 
@@ -41,8 +82,72 @@ export interface KrisenFenster {
   [key: string]: unknown
 }
 
+export interface FundamentalSeries {
+  years: string[]
+  revenue: (number | null)[]
+  grossProfit: (number | null)[]
+  ebit: (number | null)[]
+  ebitda: (number | null)[]
+  netIncome: (number | null)[]
+  grossMargin: (number | null)[]
+  operatingMargin: (number | null)[]
+  netMargin: (number | null)[]
+  operatingCashFlow: (number | null)[]
+  freeCashFlow: (number | null)[]
+  goodwill: (number | null)[]
+  sharesOut: (number | null)[]
+  totalDebt: (number | null)[]
+  cash: (number | null)[]
+  dividendsPaid: (number | null)[]
+  isDividendPayer: boolean
+}
+
+export interface MonthlyPricePoint {
+  date: string
+  close: number
+}
+
+export interface RelativeStrengthPoint {
+  date: string
+  value: number
+}
+
+export interface ReturnBar {
+  period: string
+  pct: number
+}
+
+export interface QuickCheckItem {
+  pass: boolean | null
+  wert?: number | null
+  klasse?: string | null
+}
+
+export interface QuickCheckData {
+  kein_penny_stock: QuickCheckItem
+  liquiditaet: QuickCheckItem
+  marktkap_klasse: QuickCheckItem
+  aufwaertstrend: QuickCheckItem
+}
+
+export interface SwotData {
+  staerken: string[]
+  schwaechen: string[]
+  chancen: string[]
+  risiken: string[]
+}
+
 export interface ChartData {
   krise?: KrisenFenster[]
+  trend?: { wCagrStock: number | null; wCagrIndex: number | null; wVola: number | null }
+  stabilitaet?: { piotroski: number | null; piotroskiAmpel: number | null; altman: number | null; altmanAmpel: number | null; hinweis?: string }
+  swot?: SwotData | null
+  no_go_hart?: boolean
+  fundamentalSeries?: FundamentalSeries
+  priceMonthly?: { stock: MonthlyPricePoint[]; index: MonthlyPricePoint[] }
+  relativeStrength?: RelativeStrengthPoint[]
+  returnBars?: ReturnBar[]
+  quickCheck?: QuickCheckData
   [key: string]: unknown
 }
 

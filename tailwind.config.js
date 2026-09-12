@@ -35,9 +35,27 @@ export default {
           yellow: '#eab308',
           red: '#ef4444',
         },
+        // Etappe 1 — Design "Analysten-Memo": eigenes, bewusst gedaempftes
+        // Farbschema NUR fuer die Analyse-Detailseite (Quick-Check/Qualitaet/
+        // Fundamental/KI-Einschaetzung-Tabs), unabhaengig vom Navy/Gold-Schema
+        // des restlichen Frontends.
+        memo: {
+          paper: '#f4f2ee',
+          ink: '#1a1a1a',
+          line: '#cccccc',
+          line2: '#dddddd',
+          muted: '#999999',
+          muted2: '#888888',
+          plus: '#7f9482',
+          plusText: '#4a7a58',
+          minus: '#b9776c',
+          minusText: '#a9564c',
+          grau: '#9a978f',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        analyst: ['"Iowan Old Style"', 'Georgia', '"Times New Roman"', 'serif'],
       },
       boxShadow: {
         card: '0 1px 2px rgba(22,36,28,0.06), 0 1px 0 rgba(22,36,28,0.03)',
