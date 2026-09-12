@@ -1,16 +1,10 @@
-import { useState } from 'react'
 import type { StockAnalysis } from '../../types/database'
 import { fmtCompact, dash } from '../../lib/memoFormat'
-import { SeriesBarChart, SeriesDualBarChart, SeriesMultiLineChart } from '../../components/memo/Charts'
+import { SeriesBarChart, SeriesDualBarChart, SeriesMultiLineChart, FundamentalHeroChart } from '../../components/memo/Charts'
 
-type HeroMetric = 'grossProfit' | 'ebit' | 'ebitda' | 'netIncome'
-
-const HERO_TABS: { key: HeroMetric; label: string }[] = [
-  { key: 'grossProfit', label: 'Bruttogewinn' },
-  { key: 'ebit', label: 'EBIT' },
-  { key: 'ebitda', label: 'EBITDA' },
-  { key: 'netIncome', label: 'Nettogewinn' },
-]
+function hasRealData(values: (number | null)[]): boolean {
+  return values.some((v) => v != null && v !== 0)
+}
 
 function ValuationCell({ label, metric, currency }: { label: string; metric?: { value: number | null; label: string }; currency: string }) {
   return (
@@ -26,7 +20,6 @@ function ValuationCell({ label, metric, currency }: { label: string; metric?: { 
 }
 
 export function FundamentalTab({ analysis }: { analysis: StockAnalysis }) {
-  const [heroMetric, setHeroMetric] = useState<HeroMetric>('netIncome')
   const fs = analysis.chart_data?.fundamentalSeries
   const valuation = analysis.bewertung?.valuation
   const currency = analysis.currency ?? ''
@@ -35,30 +28,24 @@ export function FundamentalTab({ analysis }: { analysis: StockAnalysis }) {
     return <p className="py-8 text-center text-sm text-memo-grau">Keine Fundamentaldaten verfügbar.</p>
   }
 
+  const showGoodwill = hasRealData(fs.goodwill)
+
   return (
     <div className="space-y-8">
       <div>
-        <div className="mb-3 flex gap-4 border-b border-memo-line2 text-sm">
-          {HERO_TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setHeroMetric(t.key)}
-              className={`-mb-px border-b-2 pb-2 transition-colors ${
-                heroMetric === t.key
-                  ? 'border-memo-ink text-memo-ink'
-                  : 'border-transparent text-memo-muted hover:text-memo-ink'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <SeriesBarChart
+        <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-memo-muted">
+          Bruttogewinn / EBIT / EBITDA / Nettogewinn
+        </h3>
+        <FundamentalHeroChart
           years={fs.years}
-          values={fs[heroMetric]}
-          signed
-          height={220}
+          height={240}
           formatValue={(v) => fmtCompact(v, currency)}
+          series={[
+            { label: 'Bruttogewinn', values: fs.grossProfit },
+            { label: 'EBIT', values: fs.ebit },
+            { label: 'EBITDA', values: fs.ebitda },
+            { label: 'Nettogewinn', values: fs.netIncome },
+          ]}
         />
       </div>
 
@@ -98,10 +85,12 @@ export function FundamentalTab({ analysis }: { analysis: StockAnalysis }) {
               ]}
             />
           </div>
-          <div>
-            <p className="mb-1.5 text-xs text-memo-muted">Goodwill</p>
-            <SeriesBarChart years={fs.years} values={fs.goodwill} formatValue={(v) => fmtCompact(v, currency)} />
-          </div>
+          {showGoodwill && (
+            <div>
+              <p className="mb-1.5 text-xs text-memo-muted">Goodwill</p>
+              <SeriesBarChart years={fs.years} values={fs.goodwill} formatValue={(v) => fmtCompact(v, currency)} />
+            </div>
+          )}
           <div>
             <p className="mb-1.5 text-xs text-memo-muted">Aktienanzahl</p>
             <SeriesBarChart years={fs.years} values={fs.sharesOut} formatValue={(v) => fmtCompact(v)} />

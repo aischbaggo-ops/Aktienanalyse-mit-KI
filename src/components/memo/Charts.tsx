@@ -10,6 +10,14 @@ const COLOR_INK = '#1a1a1a'
 const COLOR_LINE = '#dddddd'
 const COLOR_MUTED = '#999999'
 
+// Neutrale Kategorie-Farben fuer Mehrfach-Linien-Charts, die KEINE
+// positiv/negativ-Bewertung transportieren (z.B. Bruttogewinn/EBIT/EBITDA/
+// Nettogewinn oder Margen-Arten) - bewusst getrennt von COLOR_PLUS_TEXT/
+// COLOR_MINUS_TEXT, die im Projekt durchgaengig "positiv"/"negativ"
+// bedeuten (Quick-Check, K.O.-Badges). Dunkel->hell gestaffelt passend zur
+// Groessenhierarchie der jeweiligen Kennzahlen.
+const CATEGORY_LINE_COLORS = [COLOR_INK, '#41545f', '#6d818c', '#9caab2']
+
 function EmptyNote({ text }: { text: string }) {
   return <p className="py-8 text-center text-xs text-memo-muted">{text}</p>
 }
@@ -253,6 +261,90 @@ export function SeriesBarChart({
   )
 }
 
+/**
+ * Hero-Chart fuer den Fundamental-Tab: mehrere Kennzahlen (Bruttogewinn/EBIT/
+ * EBITDA/Nettogewinn) gleichzeitig als Linien ueber die Zeit, mit Y-Achsen-
+ * Gitterlinien und Legende darunter - gleiches Vorbild wie der Kursverlauf-
+ * Chart im Quick-Check-Tab (LogPriceChart), nur linear statt log und mit
+ * mehreren Serien statt zwei.
+ */
+export function FundamentalHeroChart({
+  years,
+  series,
+  height = 220,
+  formatValue,
+}: {
+  years: string[]
+  series: { label: string; values: (number | null)[] }[]
+  height?: number
+  formatValue?: (v: number) => string
+}) {
+  const allVals = series.flatMap((s) => s.values).filter((v): v is number => typeof v === 'number')
+  if (allVals.length === 0) return <EmptyNote text="Keine Daten verfügbar." />
+
+  const width = 800
+  const marginLeft = 64
+  const marginBottom = 22
+  const marginTop = 10
+  const plotW = width - marginLeft - 8
+  const plotH = height - marginTop - marginBottom
+
+  const minV = Math.min(0, ...allVals)
+  const maxV = Math.max(...allVals)
+  const span = maxV - minV || 1
+
+  const x = (i: number) => marginLeft + (years.length > 1 ? (i / (years.length - 1)) * plotW : plotW / 2)
+  const y = (v: number) => marginTop + (1 - (v - minV) / span) * plotH
+
+  const ticks = [0, 1, 2, 3].map((t) => minV + (span * t) / 3)
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height }} preserveAspectRatio="none">
+        {ticks.map((t, i) => (
+          <g key={i}>
+            <line x1={marginLeft} x2={width - 8} y1={y(t)} y2={y(t)} stroke={COLOR_LINE} strokeWidth={1} />
+            <text x={marginLeft - 6} y={y(t) + 3} textAnchor="end" fontSize={10} fill={COLOR_MUTED}>
+              {formatValue ? formatValue(t) : t.toFixed(0)}
+            </text>
+          </g>
+        ))}
+        {years.map((yr, i) => (
+          <text key={i} x={x(i)} y={height - 4} textAnchor="middle" fontSize={10} fill={COLOR_MUTED}>
+            {yr}
+          </text>
+        ))}
+        {series.map((s, si) => {
+          const segments: string[] = []
+          let current: string[] = []
+          s.values.forEach((v, i) => {
+            if (typeof v === 'number') {
+              current.push(`${current.length === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`)
+            } else if (current.length) {
+              segments.push(current.join(' '))
+              current = []
+            }
+          })
+          if (current.length) segments.push(current.join(' '))
+          const color = CATEGORY_LINE_COLORS[si % CATEGORY_LINE_COLORS.length]
+          return segments.map((d, di) => <path key={`${si}-${di}`} d={d} fill="none" stroke={color} strokeWidth={1.75} />)
+        })}
+      </svg>
+      <div className="mt-2 flex flex-wrap gap-4 text-xs text-memo-muted">
+        {series.map((s, i) => (
+          <span key={i}>
+            <span
+              className="mr-1.5 inline-block h-2 w-2 rounded-sm"
+              style={{ backgroundColor: CATEGORY_LINE_COLORS[i % CATEGORY_LINE_COLORS.length] }}
+            />
+            {s.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /** 3-Segment-Wahrscheinlichkeitsbalken Baer/Basis/Bull. */
 export function ProbabilityBar({ baer, basis, bull }: { baer: number; basis: number; bull: number }) {
   return (
@@ -327,8 +419,6 @@ export function CorridorChart({ pfad, height = 240 }: { pfad: PrognosePfadPunkt[
     </svg>
   )
 }
-
-const MULTI_LINE_COLORS = [COLOR_INK, COLOR_PLUS_TEXT, COLOR_MINUS_TEXT]
 
 /** Zwei gruppierte Balkenserien pro Jahr (z.B. operativer Cashflow + FCF). */
 export function SeriesDualBarChart({
@@ -452,7 +542,7 @@ export function SeriesMultiLineChart({
           })
           if (current.length) segments.push(current.join(' '))
           return segments.map((d, di) => (
-            <path key={`${si}-${di}`} d={d} fill="none" stroke={MULTI_LINE_COLORS[si % MULTI_LINE_COLORS.length]} strokeWidth={1.5} />
+            <path key={`${si}-${di}`} d={d} fill="none" stroke={CATEGORY_LINE_COLORS[si % CATEGORY_LINE_COLORS.length]} strokeWidth={1.5} />
           ))
         })}
         {years.map((yr, i) => (
@@ -466,7 +556,7 @@ export function SeriesMultiLineChart({
           <span key={i}>
             <span
               className="mr-1 inline-block h-2 w-2 rounded-sm"
-              style={{ backgroundColor: MULTI_LINE_COLORS[i % MULTI_LINE_COLORS.length] }}
+              style={{ backgroundColor: CATEGORY_LINE_COLORS[i % CATEGORY_LINE_COLORS.length] }}
             />
             {s.label}
           </span>

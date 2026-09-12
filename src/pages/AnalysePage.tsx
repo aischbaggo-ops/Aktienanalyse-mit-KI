@@ -254,9 +254,6 @@ export function AnalysePage() {
       {/* Footer meta */}
       <div className="flex flex-wrap gap-x-6 gap-y-1 border-t border-memo-line2 pt-4 text-xs text-memo-muted">
         <span>Datenquelle: {analysis.data_source ?? '–'}</span>
-        {analysis.cost_usd_claude !== null && (
-          <span>Kosten (Claude): ${analysis.cost_usd_claude.toFixed(4)}</span>
-        )}
       </div>
     </div>
   )
