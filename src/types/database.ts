@@ -27,13 +27,24 @@ export interface ValuationMetric {
   label: string
 }
 
+export interface FairValueData {
+  value: number | null
+  label: string
+  abweichung_pct: number | null
+  kontext: {
+    avg_kgv: number | null
+    avg_kcv: number | null
+    dcf: number | null
+    jahre: number
+  }
+}
+
 export interface ValuationData {
   verfuegbar: boolean
   hinweis?: string
   market_cap?: number
   ev?: number
-  kgv?: ValuationMetric
-  kcv?: ValuationMetric
+  fair_value?: FairValueData
   ev_umsatz?: ValuationMetric
 }
 

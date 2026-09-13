@@ -1,5 +1,5 @@
-import type { StockAnalysis } from '../../types/database'
-import { fmtCompact, dash } from '../../lib/memoFormat'
+import type { FairValueData, StockAnalysis } from '../../types/database'
+import { fmtCompact, fmtMoney, fmtPct, dash } from '../../lib/memoFormat'
 import { SeriesBarChart, MultiLineChart } from '../../components/memo/Charts'
 
 function hasRealData(values: (number | null)[]): boolean {
@@ -15,6 +15,48 @@ function ValuationCell({ label, metric, currency }: { label: string; metric?: { 
       </p>
       <p className="text-xs text-memo-muted">{metric?.label ?? 'keine Bewertung möglich'}</p>
       <span className="sr-only">{currency}</span>
+    </div>
+  )
+}
+
+/**
+ * Fair Value nach Legrand-Methodik (Abschnitt 8): Ø-historisches KGV/KCV
+ * (5 Jahre) + DCF, je 50%, ±5%-Toleranzband. Hauptaussage = Fair Value +
+ * Abweichung vom Kurs, darunter eine kleine Kontext-Zeile mit den
+ * zugrundeliegenden Ø-Multiples/DCF zur Nachvollziehbarkeit.
+ */
+function FairValueCard({ fairValue, currency }: { fairValue?: FairValueData; currency: string }) {
+  if (!fairValue || fairValue.value == null) {
+    return (
+      <div className="border border-memo-line px-4 py-3 sm:col-span-2">
+        <p className="mb-1 text-xs uppercase tracking-wide text-memo-muted">Fair Value (Ø-KGV/KCV + DCF)</p>
+        <p className="font-analyst text-lg text-memo-ink">{dash()}</p>
+        <p className="text-xs text-memo-muted">{fairValue?.label ?? 'keine Bewertung möglich'}</p>
+      </div>
+    )
+  }
+
+  const k = fairValue.kontext
+  const kontextParts = [
+    k.avg_kgv != null ? `Ø-KGV ${k.avg_kgv.toFixed(1)}×` : null,
+    k.avg_kcv != null ? `Ø-KCV ${k.avg_kcv.toFixed(1)}×` : null,
+    k.dcf != null ? `DCF ${fmtMoney(k.dcf, currency)}` : null,
+  ]
+    .filter((p): p is string => p !== null)
+    .join(' · ')
+
+  return (
+    <div className="border border-memo-line px-4 py-3 sm:col-span-2">
+      <p className="mb-1 text-xs uppercase tracking-wide text-memo-muted">Fair Value (Ø-KGV/KCV + DCF)</p>
+      <p className="font-analyst text-lg text-memo-ink">
+        {fmtMoney(fairValue.value, currency)}
+        <span className="ml-2 text-sm font-normal text-memo-muted">{fairValue.label}</span>
+      </p>
+      <p className="text-xs text-memo-muted">
+        {fairValue.abweichung_pct != null && `Kurs ${fmtPct(fairValue.abweichung_pct)} vs. Fair Value`}
+        {kontextParts && ` · ${kontextParts}`}
+        {k.jahre ? ` (Basis: ${k.jahre} Jahre Historie)` : ''}
+      </p>
     </div>
   )
 }
@@ -57,8 +99,7 @@ export function FundamentalTab({ analysis }: { analysis: StockAnalysis }) {
       <div>
         <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-memo-muted">Bewertungskennzahlen</h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <ValuationCell label="KGV" metric={valuation?.kgv} currency={currency} />
-          <ValuationCell label="KCV" metric={valuation?.kcv} currency={currency} />
+          <FairValueCard fairValue={valuation?.fair_value} currency={currency} />
           <ValuationCell label="EV/Umsatz" metric={valuation?.ev_umsatz} currency={currency} />
         </div>
         {valuation?.verfuegbar === false && (
