@@ -177,28 +177,27 @@ export function AdminPage() {
     }
   }
 
-  if (loading) return <p className="text-sm text-navy-500">Lade Aktivitätsdaten...</p>
+  if (loading) return <p className="text-sm text-memo-muted">Lade Aktivitätsdaten...</p>
 
   if (error) {
-    return <div className="rounded-xl border border-ampel-red/40 bg-ampel-red/10 p-5 text-sm text-ampel-red">{error}</div>
+    return <div className="border border-memo-minus/40 bg-memo-minus/10 p-5 text-sm text-memo-minusText">{error}</div>
   }
 
   if (!metrics) return null
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-xl font-semibold text-navy-950">Admin — Aktivität</h1>
-
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+    <div className="space-y-10">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <Kpi label="Anfragen heute" value={metrics.requestsToday.toString()} />
         <Kpi label="Anfragen gesamt" value={metrics.requestsTotal.toString()} />
         <Kpi label="Kosten (Claude)" value={`$${metrics.totalCostUsd.toFixed(2)}`} />
-        <Kpi label="Cache-Trefferquote" value={`${metrics.cacheHitRatePct.toFixed(1)}%`} />
+        <Kpi label="Cache-Trefferquote" value={`${metrics.cacheHitRatePct.toFixed(1)}%`} tone="plus" />
         <Kpi
           label="Erfolgsquote"
           value={metrics.successRatePct != null ? `${metrics.successRatePct.toFixed(1)}%` : '–'}
+          tone="plus"
         />
-        <Kpi label="Fehlschläge" value={metrics.errorCount.toString()} />
+        <Kpi label="Fehlschläge" value={metrics.errorCount.toString()} tone={metrics.errorCount > 0 ? 'minus' : undefined} />
         <Kpi
           label="Ø Laufzeit"
           value={metrics.avgDurationMs != null ? `${(metrics.avgDurationMs / 1000).toFixed(1)}s` : '–'}
@@ -219,33 +218,31 @@ export function AdminPage() {
               ? `${metrics.deviationCount} (${metrics.deviationRatePct.toFixed(1)}%)`
               : metrics.deviationCount.toString()
           }
-          highlight={metrics.deviationRatePct != null && metrics.deviationRatePct > 20}
+          tone={metrics.deviationRatePct != null && metrics.deviationRatePct > 20 ? 'minus' : undefined}
         />
       </div>
 
-      <div className="rounded-xl border border-navy-200 bg-white p-5 shadow-card">
-        <h2 className="mb-1 text-sm font-semibold text-navy-950">Kontrollläufe — Score-Abweichung &gt;3 Punkte</h2>
-        <p className="mb-3 text-xs text-navy-500">
+      <div>
+        <p className="mb-1 text-xs font-medium uppercase tracking-wide text-memo-muted">
+          Kontrollläufe — Score-Abweichung &gt;3 Punkte
+        </p>
+        <p className="mb-3 text-xs text-memo-muted">
           Häufige Treffer bei einem Ticker/einer Branche deuten auf Nachschärfbedarf bei der
           Score-Berechnung hin.
         </p>
         {deviationRequests.length === 0 ? (
-          <p className="text-sm text-navy-500">Keine Kontrollläufe protokolliert.</p>
+          <p className="text-sm text-memo-muted">Keine Kontrollläufe protokolliert.</p>
         ) : (
           <ul className="space-y-2">
             {deviationRequests.map((r, idx) => (
               <li key={idx} className="flex items-center gap-3 text-sm">
-                <span className="w-14 flex-shrink-0 font-medium text-gold-500">{r.ticker}</span>
-                <span
-                  className={`font-semibold ${
-                    (r.deviation_amount ?? 0) >= 0 ? 'text-ampel-green' : 'text-ampel-red'
-                  }`}
-                >
+                <span className="w-16 flex-shrink-0 text-memo-ink">{r.ticker}</span>
+                <span className={(r.deviation_amount ?? 0) >= 0 ? 'text-memo-plusText' : 'text-memo-minusText'}>
                   {r.deviation_amount != null
                     ? `${r.deviation_amount >= 0 ? '+' : ''}${r.deviation_amount.toFixed(1)} Pkt.`
                     : '–'}
                 </span>
-                <span className="text-navy-500">
+                <span className="text-memo-muted">
                   {new Date(r.requested_at).toLocaleString('de-DE')}
                 </span>
               </li>
@@ -254,30 +251,28 @@ export function AdminPage() {
         )}
       </div>
 
-      <div className="rounded-xl border border-navy-200 bg-white shadow-card">
-        <h2 className="border-b border-navy-100 px-5 py-3.5 text-sm font-semibold text-navy-950">
-          Fehlschläge
-        </h2>
+      <div>
+        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-memo-muted">Fehlschläge</p>
         {failedRequests.length === 0 ? (
-          <p className="p-5 text-sm text-navy-500">Keine Fehlschläge protokolliert.</p>
+          <p className="text-sm text-memo-muted">Keine Fehlschläge protokolliert.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-navy-100 text-left text-xs uppercase tracking-wide text-navy-500">
-                  <th className="px-5 py-2.5 font-medium">Ticker</th>
-                  <th className="px-5 py-2.5 font-medium">Zeitpunkt</th>
-                  <th className="px-5 py-2.5 font-medium">Fehlermeldung</th>
+                <tr className="border-b border-memo-line2 text-left text-xs uppercase tracking-wide text-memo-muted">
+                  <th className="py-2 pr-4 font-medium">Ticker</th>
+                  <th className="py-2 pr-4 font-medium">Zeitpunkt</th>
+                  <th className="py-2 font-medium">Fehlermeldung</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-navy-100">
+              <tbody className="divide-y divide-memo-line2">
                 {failedRequests.map((r, idx) => (
                   <tr key={idx}>
-                    <td className="px-5 py-2.5 align-top font-medium text-navy-950">{r.ticker}</td>
-                    <td className="whitespace-nowrap px-5 py-2.5 align-top text-navy-500">
+                    <td className="py-2.5 pr-4 align-top text-memo-ink">{r.ticker}</td>
+                    <td className="whitespace-nowrap py-2.5 pr-4 align-top text-memo-muted">
                       {new Date(r.requested_at).toLocaleString('de-DE')}
                     </td>
-                    <td className="px-5 py-2.5 align-top text-ampel-red">
+                    <td className="py-2.5 align-top text-memo-minusText">
                       {r.error_message ?? '–'}
                     </td>
                   </tr>
@@ -289,34 +284,34 @@ export function AdminPage() {
       </div>
 
       {showDataGaps && (
-        <div className="rounded-xl border border-navy-200 bg-white shadow-card">
-          <div className="flex items-center justify-between border-b border-navy-100 px-5 py-3.5">
-            <h2 className="text-sm font-semibold text-navy-950">
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-medium uppercase tracking-wide text-memo-muted">
               Datenlücken — unvollständige FMP-Daten (Free-Plan)
-            </h2>
+            </p>
             <button
               onClick={() => setShowDataGaps(false)}
-              className="text-xs font-medium text-navy-500 hover:text-navy-700"
+              className="text-xs text-memo-muted hover:text-memo-ink"
             >
               Ausblenden
             </button>
           </div>
           {dataGapRequests.length === 0 ? (
-            <p className="p-5 text-sm text-navy-500">Keine Datenlücken protokolliert.</p>
+            <p className="text-sm text-memo-muted">Keine Datenlücken protokolliert.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-navy-100 text-left text-xs uppercase tracking-wide text-navy-500">
-                    <th className="px-5 py-2.5 font-medium">Ticker</th>
-                    <th className="px-5 py-2.5 font-medium">Zeitpunkt</th>
+                  <tr className="border-b border-memo-line2 text-left text-xs uppercase tracking-wide text-memo-muted">
+                    <th className="py-2 pr-4 font-medium">Ticker</th>
+                    <th className="py-2 font-medium">Zeitpunkt</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-navy-100">
+                <tbody className="divide-y divide-memo-line2">
                   {dataGapRequests.map((r, idx) => (
                     <tr key={idx}>
-                      <td className="px-5 py-2.5 font-medium text-navy-950">{r.ticker}</td>
-                      <td className="whitespace-nowrap px-5 py-2.5 text-navy-500">
+                      <td className="py-2.5 pr-4 text-memo-ink">{r.ticker}</td>
+                      <td className="whitespace-nowrap py-2.5 text-memo-muted">
                         {new Date(r.requested_at).toLocaleString('de-DE')}
                       </td>
                     </tr>
@@ -328,60 +323,50 @@ export function AdminPage() {
         </div>
       )}
 
-      <div className="rounded-xl border border-navy-200 bg-white p-5 shadow-card">
-        <h2 className="mb-3 text-sm font-semibold text-navy-950">Meistgesuchte Ticker</h2>
+      <div>
+        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-memo-muted">Meistgesuchte Ticker</p>
         {metrics.topTickers.length === 0 ? (
-          <p className="text-sm text-navy-500">Keine Daten vorhanden.</p>
+          <p className="text-sm text-memo-muted">Keine Daten vorhanden.</p>
         ) : (
           <ol className="space-y-2">
             {metrics.topTickers.map((t, idx) => (
               <li key={t.ticker} className="flex items-center gap-3 text-sm">
-                <span className="w-5 text-navy-500">{idx + 1}.</span>
-                <span className="font-medium text-gold-500">{t.ticker}</span>
-                <span className="text-navy-500">{t.count}× angefragt</span>
+                <span className="w-5 text-memo-muted">{idx + 1}.</span>
+                <span className="text-memo-ink">{t.ticker}</span>
+                <span className="text-memo-muted">{t.count}× angefragt</span>
               </li>
             ))}
           </ol>
         )}
       </div>
 
-      <div className="rounded-xl border border-navy-200 bg-white shadow-card">
-        <h2 className="border-b border-navy-100 px-5 py-3.5 text-sm font-semibold text-navy-950">
-          Letzte Anfragen
-        </h2>
+      <div>
+        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-memo-muted">Letzte Anfragen</p>
         {requests.length === 0 ? (
-          <p className="p-5 text-sm text-navy-500">Noch keine Anfragen protokolliert.</p>
+          <p className="text-sm text-memo-muted">Noch keine Anfragen protokolliert.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-navy-100 text-left text-xs uppercase tracking-wide text-navy-500">
-                  <th className="px-5 py-2.5 font-medium">Ticker</th>
-                  <th className="px-5 py-2.5 font-medium">User</th>
-                  <th className="px-5 py-2.5 font-medium">Zeitpunkt</th>
-                  <th className="px-5 py-2.5 font-medium">Quelle</th>
+                <tr className="border-b border-memo-line2 text-left text-xs uppercase tracking-wide text-memo-muted">
+                  <th className="py-2 pr-4 font-medium">Ticker</th>
+                  <th className="py-2 pr-4 font-medium">User</th>
+                  <th className="py-2 pr-4 font-medium">Zeitpunkt</th>
+                  <th className="py-2 font-medium">Quelle</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-navy-100">
+              <tbody className="divide-y divide-memo-line2">
                 {requests.map((r, idx) => (
                   <tr key={idx}>
-                    <td className="px-5 py-2.5 font-medium text-navy-950">{r.ticker}</td>
-                    <td className="px-5 py-2.5 text-navy-500">
+                    <td className="py-2.5 pr-4 text-memo-ink">{r.ticker}</td>
+                    <td className="py-2.5 pr-4 text-memo-muted">
                       {r.user_id ? r.user_id.slice(0, 8) : 'Anonym'}
                     </td>
-                    <td className="px-5 py-2.5 text-navy-500">
+                    <td className="py-2.5 pr-4 text-memo-muted">
                       {new Date(r.requested_at).toLocaleString('de-DE')}
                     </td>
-                    <td className="px-5 py-2.5">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                          r.source === 'cache'
-                            ? 'bg-ampel-green/15 text-ampel-green'
-                            : 'bg-gold-500/15 text-gold-600'
-                        }`}
-                      >
-                        {r.source === 'cache' ? 'Cache' : 'Neu'}
-                      </span>
+                    <td className={`py-2.5 ${r.source === 'cache' ? 'text-memo-plusText' : 'text-memo-muted'}`}>
+                      {r.source === 'cache' ? 'Cache' : 'Neu'}
                     </td>
                   </tr>
                 ))}
@@ -398,38 +383,26 @@ function Kpi({
   label,
   value,
   onClick,
-  highlight,
+  tone,
 }: {
   label: string
   value: string
   onClick?: () => void
-  highlight?: boolean
+  tone?: 'plus' | 'minus'
 }) {
+  const valueClass = tone === 'plus' ? 'text-memo-plusText' : tone === 'minus' ? 'text-memo-minusText' : 'text-memo-ink'
   const content = (
     <>
-      <p
-        className={`text-xs font-medium uppercase tracking-wide ${
-          highlight ? 'text-ampel-red' : 'text-navy-500'
-        }`}
-      >
-        {label}
-      </p>
-      <p className={`mt-1 text-2xl font-bold ${highlight ? 'text-ampel-red' : 'text-navy-950'}`}>
-        {value}
-      </p>
+      <p className="text-xs uppercase tracking-wide text-memo-muted">{label}</p>
+      <p className={`mt-1.5 font-analyst text-2xl ${valueClass}`}>{value}</p>
     </>
   )
 
-  const boxClass = highlight
-    ? 'rounded-xl border border-ampel-red/40 bg-ampel-red/10 p-4 shadow-card'
-    : 'rounded-xl border border-navy-200 bg-white p-4 shadow-card'
+  const boxClass = 'border border-memo-line px-4 py-3'
 
   if (onClick) {
     return (
-      <button
-        onClick={onClick}
-        className={`${boxClass} text-left transition-colors hover:border-gold-500`}
-      >
+      <button onClick={onClick} className={`${boxClass} text-left transition-colors hover:border-memo-ink`}>
         {content}
       </button>
     )

@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { requestAnalyse, SymbolSearchResult } from '../lib/webhooks'
 import { SymbolSearch } from '../components/SymbolSearch'
-import { ScoreBadge } from '../components/ScoreBadge'
 import { generateAnalysisPdf } from '../utils/pdfExport'
 import type { StockAnalysis, WatchlistWithAnalysis } from '../types/database'
 
@@ -31,6 +30,7 @@ export function DashboardPage() {
 
   const [watchlist, setWatchlist] = useState<WatchlistWithAnalysis[]>([])
   const [watchlistLoading, setWatchlistLoading] = useState(true)
+  const [selectedTickers, setSelectedTickers] = useState<Set<string>>(new Set())
 
   const [downloadingTicker, setDownloadingTicker] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
@@ -63,6 +63,15 @@ export function DashboardPage() {
       .order('added_at', { ascending: false })
     setWatchlist((data as unknown as WatchlistWithAnalysis[]) ?? [])
     setWatchlistLoading(false)
+  }
+
+  function toggleTicker(ticker: string) {
+    setSelectedTickers((prev) => {
+      const next = new Set(prev)
+      if (next.has(ticker)) next.delete(ticker)
+      else next.add(ticker)
+      return next
+    })
   }
 
   async function handleDownloadPdf(ticker: string) {
@@ -148,130 +157,156 @@ export function DashboardPage() {
 
       <section>
         <h2 className="mb-3 text-base font-semibold text-navy-950">Letzte Analysen (24h)</h2>
-        <div className="rounded-xl border border-navy-200 bg-white shadow-card">
-          {recentLoading ? (
-            <p className="p-5 text-sm text-navy-500">Lade...</p>
-          ) : recent.length === 0 ? (
-            <p className="p-5 text-sm text-navy-500">Noch keine Analysen in den letzten 24h.</p>
-          ) : (
-            <ul className="divide-y divide-navy-100">
-              {recent.map((a) => (
-                <li
-                  key={a.ticker}
-                  className="flex items-center gap-2 px-5 py-3.5 transition-colors hover:bg-navy-50"
-                >
-                  <button
-                    onClick={() => navigate(`/analyse/${encodeURIComponent(a.ticker)}`)}
-                    className="flex min-w-0 flex-1 items-center gap-4 text-left"
-                  >
-                    <ScoreBadge score={a.score_total} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-navy-950">
-                        {a.ticker}
-                        {a.company_name ? ` — ${a.company_name}` : ''}
-                      </p>
-                      <p className="text-xs text-navy-500">
-                        {a.sector ?? '–'} · Status: {a.status}
-                      </p>
-                    </div>
-                    <span className="whitespace-nowrap text-xs text-navy-500">
-                      {new Date(a.updated_at).toLocaleString('de-DE')}
-                    </span>
-                  </button>
-                  <DownloadPdfButton
-                    ticker={a.ticker}
-                    downloading={downloadingTicker === a.ticker}
-                    onClick={() => handleDownloadPdf(a.ticker)}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        {recentLoading ? (
+          <p className="text-sm text-navy-500">Lade...</p>
+        ) : recent.length === 0 ? (
+          <p className="text-sm text-navy-500">Noch keine Analysen in den letzten 24h.</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {recent.map((a) => (
+              <DashboardTile
+                key={a.ticker}
+                ticker={a.ticker}
+                sector={a.sector}
+                name={a.company_name ?? a.ticker}
+                score={a.score_total}
+                scoreLabel={`Status: ${a.status}`}
+                meta={new Date(a.updated_at).toLocaleString('de-DE')}
+                onClick={() => navigate(`/analyse/${encodeURIComponent(a.ticker)}`)}
+                onDownloadPdf={() => handleDownloadPdf(a.ticker)}
+                downloading={downloadingTicker === a.ticker}
+              />
+            ))}
+          </div>
+        )}
       </section>
 
       <section>
-        <h2 className="mb-3 text-base font-semibold text-navy-950">Meine Watchlist</h2>
-        <div className="rounded-xl border border-navy-200 bg-white shadow-card">
-          {watchlistLoading ? (
-            <p className="p-5 text-sm text-navy-500">Lade...</p>
-          ) : watchlist.length === 0 ? (
-            <p className="p-5 text-sm text-navy-500">Deine Watchlist ist leer.</p>
-          ) : (
-            <ul className="divide-y divide-navy-100">
-              {watchlist.map((w) => (
-                <li
-                  key={w.ticker}
-                  className="flex items-center gap-2 px-5 py-3.5 transition-colors hover:bg-navy-50"
-                >
-                  <button
-                    onClick={() => navigate(`/analyse/${encodeURIComponent(w.ticker)}`)}
-                    className="flex min-w-0 flex-1 items-center gap-4 text-left"
-                  >
-                    <ScoreBadge score={w.stock_analyses?.score_total ?? null} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-navy-950">
-                        {w.ticker}
-                        {w.stock_analyses?.company_name ? ` — ${w.stock_analyses.company_name}` : ''}
-                      </p>
-                      <p className="text-xs text-navy-500">
-                        {w.stock_analyses?.sector ?? '–'}
-                      </p>
-                    </div>
-                    <span className="whitespace-nowrap text-xs text-navy-500">
-                      Hinzugefügt {new Date(w.added_at).toLocaleDateString('de-DE')}
-                    </span>
-                  </button>
-                  <DownloadPdfButton
-                    ticker={w.ticker}
-                    downloading={downloadingTicker === w.ticker}
-                    onClick={() => handleDownloadPdf(w.ticker)}
-                  />
-                </li>
-              ))}
-            </ul>
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <h2 className="text-base font-semibold text-navy-950">Meine Watchlist</h2>
+          {selectedTickers.size > 0 && (
+            <>
+              <span className="text-xs text-navy-500">{selectedTickers.size} ausgewählt</span>
+              <button
+                disabled
+                title="Batch-Analyse folgt in einem späteren Update"
+                className="cursor-not-allowed rounded-md border border-navy-200 px-3 py-1 text-xs font-medium text-navy-400"
+              >
+                Batch-Analyse (bald verfügbar)
+              </button>
+            </>
           )}
         </div>
+        {watchlistLoading ? (
+          <p className="text-sm text-navy-500">Lade...</p>
+        ) : watchlist.length === 0 ? (
+          <p className="text-sm text-navy-500">Deine Watchlist ist leer.</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {watchlist.map((w) => (
+              <DashboardTile
+                key={w.ticker}
+                ticker={w.ticker}
+                sector={w.stock_analyses?.sector ?? null}
+                name={w.stock_analyses?.company_name ?? w.ticker}
+                score={w.stock_analyses?.score_total ?? null}
+                scoreLabel={`seit ${new Date(w.added_at).toLocaleDateString('de-DE')}`}
+                onClick={() => navigate(`/analyse/${encodeURIComponent(w.ticker)}`)}
+                onDownloadPdf={() => handleDownloadPdf(w.ticker)}
+                downloading={downloadingTicker === w.ticker}
+                checked={selectedTickers.has(w.ticker)}
+                onToggleChecked={() => toggleTicker(w.ticker)}
+              />
+            ))}
+          </div>
+        )}
       </section>
     </div>
   )
 }
 
-function DownloadPdfButton({
+function DashboardTile({
   ticker,
-  downloading,
+  sector,
+  name,
+  score,
+  scoreLabel,
+  meta,
   onClick,
+  onDownloadPdf,
+  downloading,
+  checked,
+  onToggleChecked,
 }: {
   ticker: string
-  downloading: boolean
+  sector: string | null
+  name: string
+  score: number | null
+  scoreLabel: string
+  meta?: string
   onClick: () => void
+  onDownloadPdf: () => void
+  downloading: boolean
+  checked?: boolean
+  onToggleChecked?: () => void
 }) {
   return (
-    <button
+    <div
       onClick={onClick}
-      disabled={downloading}
-      title={`PDF für ${ticker} herunterladen`}
-      aria-label={`PDF für ${ticker} herunterladen`}
-      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-navy-400 transition-colors hover:bg-navy-100 hover:text-gold-500 disabled:opacity-50"
+      className="relative cursor-pointer rounded-lg border border-navy-200 bg-white p-4 transition-colors hover:border-gold-500"
     >
-      {downloading ? (
-        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-navy-200 border-t-gold-500" />
-      ) : (
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="h-4 w-4"
-        >
-          <path d="M12 3v12" />
-          <path d="m7 10 5 5 5-5" />
-          <path d="M5 21h14" />
-        </svg>
+      {onToggleChecked && (
+        <input
+          type="checkbox"
+          checked={checked ?? false}
+          onClick={(e) => e.stopPropagation()}
+          onChange={onToggleChecked}
+          className="absolute right-3.5 top-3.5 h-4 w-4 accent-navy-700"
+        />
       )}
-    </button>
+      <p className="truncate pr-6 text-xs text-navy-500">
+        {ticker}
+        {sector ? ` · ${sector}` : ''}
+      </p>
+      <p className="mb-2.5 mt-0.5 truncate pr-6 font-analyst text-lg text-navy-950">{name}</p>
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <span className={`text-2xl font-semibold ${score == null ? 'text-memo-grau' : 'text-navy-950'}`}>
+          {score ?? '–'}
+        </span>
+        <span className="whitespace-nowrap text-[11px] text-navy-400">{scoreLabel}</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-navy-400">{meta ?? ''}</span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onDownloadPdf()
+          }}
+          disabled={downloading}
+          title={`PDF für ${ticker} herunterladen`}
+          aria-label={`PDF für ${ticker} herunterladen`}
+          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-navy-400 transition-colors hover:bg-navy-100 hover:text-gold-500 disabled:opacity-50"
+        >
+          {downloading ? (
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-navy-200 border-t-gold-500" />
+          ) : (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-3.5 w-3.5"
+            >
+              <path d="M12 3v12" />
+              <path d="m7 10 5 5 5-5" />
+              <path d="M5 21h14" />
+            </svg>
+          )}
+        </button>
+      </div>
+    </div>
   )
 }
