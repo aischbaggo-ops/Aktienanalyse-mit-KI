@@ -1,3 +1,5 @@
+import { MEMO_PLUS, MEMO_MINUS, MEMO_GRAU } from './src/lib/memoColors.js'
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
@@ -46,11 +48,16 @@ export default {
           line2: '#dddddd',
           muted: '#999999',
           muted2: '#888888',
-          plus: '#7f9482',
-          plusText: '#4a7a58',
-          minus: '#b9776c',
-          minusText: '#a9564c',
-          grau: '#9a978f',
+          // Plus/Minus/Grau kommen aus src/lib/memoColors.js (einzige Quelle,
+          // Palette-Validator-geprueft) - plusText/minusText sind bewusst
+          // identisch mit plus/minus (die neuen Werte sind dunkel/gesaettigt
+          // genug fuer Chart-Marke UND lesbaren Text, keine getrennte
+          // Text-Variante mehr noetig).
+          plus: MEMO_PLUS,
+          plusText: MEMO_PLUS,
+          minus: MEMO_MINUS,
+          minusText: MEMO_MINUS,
+          grau: MEMO_GRAU,
         },
       },
       fontFamily: {

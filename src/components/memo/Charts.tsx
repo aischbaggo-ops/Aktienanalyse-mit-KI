@@ -1,11 +1,15 @@
 import { useId, useState } from 'react'
 import type { MonthlyPricePoint, RelativeStrengthPoint, ReturnBar, PrognosePfadPunkt } from '../../types/database'
+import { MEMO_PLUS, MEMO_MINUS, MEMO_GRAU } from '../../lib/memoColors.js'
 
-const COLOR_PLUS = '#7f9482'
-const COLOR_PLUS_TEXT = '#4a7a58'
-const COLOR_MINUS = '#b9776c'
-const COLOR_MINUS_TEXT = '#a9564c'
-const COLOR_GRAU = '#9a978f'
+// Plus/Minus/Grau kommen aus lib/memoColors.js (einzige, Palette-Validator-
+// gepruefte Quelle - siehe dortige Kommentare). PLUS_TEXT/MINUS_TEXT sind
+// bewusst identisch mit PLUS/MINUS, keine getrennte Text-Variante mehr noetig.
+const COLOR_PLUS = MEMO_PLUS
+const COLOR_PLUS_TEXT = MEMO_PLUS
+const COLOR_MINUS = MEMO_MINUS
+const COLOR_MINUS_TEXT = MEMO_MINUS
+const COLOR_GRAU = MEMO_GRAU
 const COLOR_INK = '#1a1a1a'
 const COLOR_LINE = '#dddddd'
 const COLOR_MUTED = '#999999'

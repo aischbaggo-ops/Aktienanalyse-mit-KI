@@ -1,17 +1,18 @@
 import type { CriterionEntry, StockAnalysis } from '../../types/database'
+import { MEMO_PLUS, MEMO_MINUS, MEMO_GRAU } from '../../lib/memoColors.js'
 
 const KO_NAMES = ['Keine Skandale', 'Keine schweren Vorwuerfe gegen Unternehmen', 'Keine schweren Vorwuerfe gegen Management']
 
 function ampelDotColor(ampel: string): string {
   switch (ampel) {
     case 'gruen':
-      return '#4a7a58'
+      return MEMO_PLUS
     case 'gelb':
       return '#eab308'
     case 'rot':
-      return '#a9564c'
+      return MEMO_MINUS
     default:
-      return '#9a978f'
+      return MEMO_GRAU
   }
 }
 
@@ -92,7 +93,7 @@ export function QualitaetTab({ analysis }: { analysis: StockAnalysis }) {
                 <span
                   key={c.name}
                   className="rounded-full border px-3 py-1 text-xs font-medium"
-                  style={{ borderColor: '#a9564c', color: '#a9564c' }}
+                  style={{ borderColor: MEMO_MINUS, color: MEMO_MINUS }}
                 >
                   K.O. verletzt: {c.name}
                 </span>
