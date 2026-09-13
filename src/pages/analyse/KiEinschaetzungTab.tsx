@@ -16,13 +16,18 @@ export function KiEinschaetzungTab({ analysis }: { analysis: StockAnalysis }) {
   const bankRatings = analysis.chart_data?.bankRatings ?? []
   const currency = analysis.currency ?? ''
 
+  const basisFairValue = prognose?.verfuegbar ? prognose.basis?.fair_value_heute ?? null : null
+  const baerFairValue = prognose?.verfuegbar ? prognose.baer?.fair_value_heute ?? null : null
+  const bullFairValue = prognose?.verfuegbar ? prognose.bull?.fair_value_heute ?? null : null
+
   const verfahren: { label: string; wert: string; sub?: string }[] = [
     {
-      label:
-        prognose?.verfuegbar && prognose.zieljahr != null
-          ? `Eigenes Modell (Erwartungswert bis ${prognose.zieljahr})`
-          : 'Eigenes Modell (Erwartungswert)',
-      wert: prognose?.verfuegbar && prognose.erwartungswert != null ? fmtMoney(prognose.erwartungswert, currency) : dash(),
+      label: 'Eigenes Modell (Fair Value heute)',
+      wert: basisFairValue != null ? fmtMoney(basisFairValue, currency) : dash(),
+      sub:
+        baerFairValue != null && bullFairValue != null
+          ? `Bär ${fmtMoney(baerFairValue, currency)} – Bull ${fmtMoney(bullFairValue, currency)}`
+          : undefined,
     },
     {
       label: 'Analysten-Kursziel (Konsens)',
