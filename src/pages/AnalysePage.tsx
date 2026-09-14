@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { generateAnalysisPdf } from '../utils/pdfExport'
+import { scoreLabel, scoreLabelColorClass, scoreBandHex, scoreBandFill } from '../lib/score'
 import type { StockAnalysis, WarningEntry } from '../types/database'
 import { QuickCheckTab } from './analyse/QuickCheckTab'
 import { QualitaetTab } from './analyse/QualitaetTab'
@@ -163,25 +164,66 @@ export function AnalysePage() {
 
   const warnings = normalizeWarnings(analysis.warnings)
   const score = analysis.score_total
+  const meta = analysis.chart_data?.profileMeta
+  const marketCapText = formatMarketCap(meta?.marketCap, analysis.currency)
+  const hasMetaRow = Boolean(marketCapText || meta?.industry || meta?.exchange)
 
   return (
     <div className="space-y-6 rounded-xl border border-memo-line bg-memo-paper p-6 shadow-card sm:p-8">
       {/* Kopf */}
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-memo-line2 pb-5">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-memo-muted">
-            {analysis.ticker}
-            {analysis.sector ? ` · ${analysis.sector}` : ''}
-          </p>
-          <h1 className="mt-1 font-analyst text-3xl text-memo-ink">
-            {analysis.company_name ?? analysis.ticker}
-          </h1>
+      <div className="space-y-4 border-b border-memo-line2 pb-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            {meta?.image && (
+              <img
+                src={meta.image}
+                alt=""
+                className="h-11 w-11 rounded-md border border-memo-line2 bg-white object-contain"
+              />
+            )}
+            <div>
+              <p className="text-xs uppercase tracking-wide text-memo-muted">
+                {analysis.ticker}
+                {analysis.sector ? ` · ${analysis.sector}` : ''}
+              </p>
+              <h1 className="mt-1 font-analyst text-3xl text-memo-ink">
+                {analysis.company_name ?? analysis.ticker}
+              </h1>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-xs uppercase tracking-wide text-memo-muted">Score</p>
+            <p className="font-analyst text-4xl text-memo-ink">
+              {score != null ? score.toFixed(0) : '–'}
+            </p>
+            <p className={`text-xs font-semibold ${scoreLabelColorClass(score)}`}>{scoreLabel(score)}</p>
+          </div>
         </div>
-        <div className="text-right">
-          <p className="text-xs uppercase tracking-wide text-memo-muted">Score</p>
-          <p className="font-analyst text-2xl text-memo-ink">
-            {score != null ? score.toFixed(0) : '–'}
-          </p>
+
+        {hasMetaRow && (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pl-14 text-xs text-memo-muted">
+            {marketCapText && (
+              <span>
+                Marktkap. <strong className="font-semibold text-memo-ink">{marketCapText}</strong>
+              </span>
+            )}
+            {marketCapText && (meta?.industry || meta?.exchange) && <span>·</span>}
+            {meta?.industry && (
+              <span>
+                Segment <strong className="font-semibold text-memo-ink">{meta.industry}</strong>
+              </span>
+            )}
+            {meta?.industry && meta?.exchange && <span>·</span>}
+            {meta?.exchange && (
+              <span>
+                Börse <strong className="font-semibold text-memo-ink">{meta.exchange}</strong>
+              </span>
+            )}
+          </div>
+        )}
+
+        <div className="border-t border-memo-line2 pt-4">
+          <AnalyseRadarChart analysis={analysis} />
         </div>
       </div>
 
@@ -264,4 +306,69 @@ function normalizeWarnings(warnings: StockAnalysis['warnings']): string[] {
   return warnings
     .map((w) => (typeof w === 'string' ? w : (w as WarningEntry | null)?.text))
     .filter((w): w is string => Boolean(w))
+}
+
+function formatMarketCap(value: number | null | undefined, currency: string | null | undefined): string | null {
+  if (value === null || value === undefined) return null
+  const cur = currency ?? 'USD'
+  const abs = Math.abs(value)
+  let short: string
+  if (abs >= 1e12) short = `${(value / 1e12).toLocaleString('de-DE', { maximumFractionDigits: 2 })} Bio.`
+  else if (abs >= 1e9) short = `${(value / 1e9).toLocaleString('de-DE', { maximumFractionDigits: 1 })} Mrd.`
+  else if (abs >= 1e6) short = `${(value / 1e6).toLocaleString('de-DE', { maximumFractionDigits: 1 })} Mio.`
+  else short = value.toLocaleString('de-DE')
+  return `${short} ${cur}`
+}
+
+const RADAR_DIMENSIONS = [
+  { key: 'score_qualitaet', label: 'Qualität' },
+  { key: 'score_fundamental', label: 'Fundamental' },
+  { key: 'score_krise', label: 'Krise' },
+  { key: 'score_trend', label: 'Trend' },
+] as const satisfies { key: keyof StockAnalysis; label: string }[]
+
+function polarPoint(cx: number, cy: number, r: number, angleDeg: number): [number, number] {
+  const rad = (angleDeg * Math.PI) / 180
+  return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)]
+}
+
+function AnalyseRadarChart({ analysis }: { analysis: StockAnalysis }) {
+  const cx = 70
+  const cy = 70
+  const rOuter = 55
+  const angles = RADAR_DIMENSIONS.map((_, i) => -90 + i * 90)
+  const values = RADAR_DIMENSIONS.map((d) => analysis[d.key] as number | null)
+
+  const gridPoints = angles.map((a) => polarPoint(cx, cy, rOuter, a).join(',')).join(' ')
+  const dataPoints = angles
+    .map((a, i) => {
+      const v = values[i]
+      const r = v !== null && v !== undefined ? (Math.max(0, Math.min(100, v)) / 100) * rOuter : 0
+      return polarPoint(cx, cy, r, a).join(',')
+    })
+    .join(' ')
+  const bandHex = scoreBandHex(analysis.score_total)
+  const bandFill = scoreBandFill(analysis.score_total)
+
+  return (
+    <div className="flex flex-wrap items-center gap-5">
+      <svg width="140" height="140" viewBox="0 0 140 140" className="shrink-0">
+        <polygon points={gridPoints} fill="none" stroke="#ddd" strokeWidth="1" />
+        <polygon points={dataPoints} fill={bandFill} stroke={bandHex} strokeWidth="1.5" />
+      </svg>
+      <div className="space-y-1.5 text-xs text-memo-ink">
+        {RADAR_DIMENSIONS.map((d, i) => {
+          const v = values[i]
+          return (
+            <div key={d.key} className="flex items-center gap-2">
+              <span className="inline-block h-2 w-2 rounded-full" style={{ background: scoreBandHex(v) }} />
+              <span>
+                {d.label} {v !== null && v !== undefined ? v.toFixed(0) : '–'}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }

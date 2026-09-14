@@ -161,6 +161,13 @@ export interface BankRating {
   previousGrade: string
 }
 
+export interface ProfileMeta {
+  image: string | null
+  marketCap: number | null
+  exchange: string | null
+  industry: string | null
+}
+
 export interface ChartData {
   krise?: KrisenFenster[]
   trend?: { wCagrStock: number | null; wCagrIndex: number | null; wVola: number | null }
@@ -174,6 +181,7 @@ export interface ChartData {
   quickCheck?: QuickCheckData
   analystConsensus?: AnalystConsensus | null
   bankRatings?: BankRating[]
+  profileMeta?: ProfileMeta
   [key: string]: unknown
 }
 
