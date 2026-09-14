@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { generateAnalysisPdf } from '../utils/pdfExport'
 import { scoreLabel, scoreLabelColorClass, scoreBandHex, scoreBandFill } from '../lib/score'
+import { formatMarketCap } from '../lib/memoFormat'
 import type { StockAnalysis, WarningEntry } from '../types/database'
 import { QuickCheckTab } from './analyse/QuickCheckTab'
 import { QualitaetTab } from './analyse/QualitaetTab'
@@ -306,18 +307,6 @@ function normalizeWarnings(warnings: StockAnalysis['warnings']): string[] {
   return warnings
     .map((w) => (typeof w === 'string' ? w : (w as WarningEntry | null)?.text))
     .filter((w): w is string => Boolean(w))
-}
-
-function formatMarketCap(value: number | null | undefined, currency: string | null | undefined): string | null {
-  if (value === null || value === undefined) return null
-  const cur = currency ?? 'USD'
-  const abs = Math.abs(value)
-  let short: string
-  if (abs >= 1e12) short = `${(value / 1e12).toLocaleString('de-DE', { maximumFractionDigits: 2 })} Bio.`
-  else if (abs >= 1e9) short = `${(value / 1e9).toLocaleString('de-DE', { maximumFractionDigits: 1 })} Mrd.`
-  else if (abs >= 1e6) short = `${(value / 1e6).toLocaleString('de-DE', { maximumFractionDigits: 1 })} Mio.`
-  else short = value.toLocaleString('de-DE')
-  return `${short} ${cur}`
 }
 
 const RADAR_DIMENSIONS = [

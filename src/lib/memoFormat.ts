@@ -37,3 +37,15 @@ export function fmtYear(dateStr: string | null | undefined): string {
   if (!dateStr) return dash()
   return dateStr.slice(0, 4)
 }
+
+export function formatMarketCap(value: number | null | undefined, currency: string | null | undefined): string | null {
+  if (value === null || value === undefined) return null
+  const cur = currency ?? 'USD'
+  const abs = Math.abs(value)
+  let short: string
+  if (abs >= 1e12) short = `${(value / 1e12).toLocaleString('de-DE', { maximumFractionDigits: 2 })} Bio.`
+  else if (abs >= 1e9) short = `${(value / 1e9).toLocaleString('de-DE', { maximumFractionDigits: 1 })} Mrd.`
+  else if (abs >= 1e6) short = `${(value / 1e6).toLocaleString('de-DE', { maximumFractionDigits: 1 })} Mio.`
+  else short = value.toLocaleString('de-DE')
+  return `${short} ${cur}`
+}
