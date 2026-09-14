@@ -225,6 +225,13 @@ export function DashboardPage() {
   )
 }
 
+function scoreBorderClass(score: number | null): string {
+  if (score == null) return 'border-memo-grau'
+  if (score >= 70) return 'border-memo-plus'
+  if (score >= 40) return 'border-ampel-yellow'
+  return 'border-memo-minus'
+}
+
 function DashboardTile({
   ticker,
   sector,
@@ -253,7 +260,7 @@ function DashboardTile({
   return (
     <div
       onClick={onClick}
-      className="relative cursor-pointer rounded-lg border border-navy-200 bg-white p-4 transition-colors hover:border-gold-500"
+      className={`relative cursor-pointer rounded-lg border-2 bg-white p-4 transition-shadow hover:shadow-md ${scoreBorderClass(score)}`}
     >
       {onToggleChecked && (
         <input
