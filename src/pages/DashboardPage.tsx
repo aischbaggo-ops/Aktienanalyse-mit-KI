@@ -145,8 +145,12 @@ export function DashboardPage() {
     setBatchResults([])
     batchCancelRef.current = false
 
-    const forceRefresh = maxAge === 'always'
-
+    // Batch-Analysen erzwingen immer einen frischen Lauf, unabhaengig vom
+    // Zeitraum-Dropdown - wer bewusst mehrere Ticker auswaehlt und einen
+    // Batch startet, will erkennbar frische Ergebnisse sehen. Ein reiner
+    // Cache-Treffer waere hier kein Testerfolg, sondern verfehlt den Zweck
+    // der Funktion (deckt sich mit der Kostenschaetzung im Bestaetigungs-
+    // dialog, die ohnehin von echten neuen Kosten ausgeht).
     for (let i = 0; i < tickers.length; i++) {
       if (batchCancelRef.current) break
       setBatchIndex(i)
@@ -155,8 +159,8 @@ export function DashboardPage() {
         await requestAnalyse({
           ticker,
           user_id: user.id,
-          max_age_days: forceRefresh ? null : Number(maxAge),
-          force_refresh: forceRefresh,
+          max_age_days: null,
+          force_refresh: true,
         })
         const outcome = await waitForAnalysisDone(ticker)
         if (outcome === 'done') {
