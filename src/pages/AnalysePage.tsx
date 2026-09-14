@@ -173,58 +173,63 @@ export function AnalysePage() {
     <div className="space-y-6 rounded-xl border border-memo-line bg-memo-paper p-6 shadow-card sm:p-8">
       {/* Kopf */}
       <div className="space-y-4 border-b border-memo-line2 pb-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            {meta?.image && (
-              <img
-                src={meta.image}
-                alt=""
-                className="h-11 w-11 rounded-md border border-memo-line2 bg-white object-contain"
-              />
-            )}
-            <div>
-              <p className="text-xs uppercase tracking-wide text-memo-muted">
-                {analysis.ticker}
-                {analysis.sector ? ` · ${analysis.sector}` : ''}
-              </p>
-              <h1 className="mt-1 font-analyst text-3xl text-memo-ink">
-                {analysis.company_name ?? analysis.ticker}
-              </h1>
+        <div className="flex flex-wrap items-center gap-10">
+          <div className="flex-1" style={{ minWidth: 280, flexGrow: 1.1 }}>
+            <div className="flex items-start gap-3">
+              {meta?.image && (
+                <img
+                  src={meta.image}
+                  alt=""
+                  className="h-11 w-11 rounded-md border border-memo-line2 bg-white object-contain"
+                />
+              )}
+              <div>
+                <p className="text-xs uppercase tracking-wide text-memo-muted">
+                  {analysis.ticker}
+                  {analysis.sector ? ` · ${analysis.sector}` : ''}
+                </p>
+                <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <h1 className="font-analyst text-3xl text-memo-ink">
+                    {analysis.company_name ?? analysis.ticker}
+                  </h1>
+                  <span className="flex items-baseline gap-1.5">
+                    <span className="font-analyst text-2xl text-memo-ink">
+                      {score != null ? score.toFixed(0) : '–'}
+                    </span>
+                    <span className={`text-xs font-semibold ${scoreLabelColorClass(score)}`}>
+                      {scoreLabel(score)}
+                    </span>
+                  </span>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="text-right">
-            <p className="text-xs uppercase tracking-wide text-memo-muted">Score</p>
-            <p className="font-analyst text-4xl text-memo-ink">
-              {score != null ? score.toFixed(0) : '–'}
-            </p>
-            <p className={`text-xs font-semibold ${scoreLabelColorClass(score)}`}>{scoreLabel(score)}</p>
-          </div>
-        </div>
 
-        {hasMetaRow && (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pl-14 text-xs text-memo-muted">
-            {marketCapText && (
-              <span>
-                Marktkap. <strong className="font-semibold text-memo-ink">{marketCapText}</strong>
-              </span>
-            )}
-            {marketCapText && (meta?.industry || meta?.exchange) && <span>·</span>}
-            {meta?.industry && (
-              <span>
-                Segment <strong className="font-semibold text-memo-ink">{meta.industry}</strong>
-              </span>
-            )}
-            {meta?.industry && meta?.exchange && <span>·</span>}
-            {meta?.exchange && (
-              <span>
-                Börse <strong className="font-semibold text-memo-ink">{meta.exchange}</strong>
-              </span>
+            {hasMetaRow && (
+              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 pl-14 text-xs text-memo-muted">
+                {marketCapText && (
+                  <span>
+                    Marktkap. <strong className="font-semibold text-memo-ink">{marketCapText}</strong>
+                  </span>
+                )}
+                {marketCapText && (meta?.industry || meta?.exchange) && <span>·</span>}
+                {meta?.industry && (
+                  <span>
+                    Segment <strong className="font-semibold text-memo-ink">{meta.industry}</strong>
+                  </span>
+                )}
+                {meta?.industry && meta?.exchange && <span>·</span>}
+                {meta?.exchange && (
+                  <span>
+                    Börse <strong className="font-semibold text-memo-ink">{meta.exchange}</strong>
+                  </span>
+                )}
+              </div>
             )}
           </div>
-        )}
 
-        <div className="border-t border-memo-line2 pt-4">
-          <AnalyseRadarChart analysis={analysis} />
+          <div className="flex flex-1 items-center justify-center gap-8" style={{ minWidth: 280 }}>
+            <AnalyseRadarChart analysis={analysis} />
+          </div>
         </div>
       </div>
 
@@ -322,9 +327,9 @@ function polarPoint(cx: number, cy: number, r: number, angleDeg: number): [numbe
 }
 
 function AnalyseRadarChart({ analysis }: { analysis: StockAnalysis }) {
-  const cx = 70
-  const cy = 70
-  const rOuter = 55
+  const cx = 95
+  const cy = 95
+  const rOuter = 78
   const angles = RADAR_DIMENSIONS.map((_, i) => -90 + i * 90)
   const values = RADAR_DIMENSIONS.map((d) => analysis[d.key] as number | null)
 
@@ -340,17 +345,17 @@ function AnalyseRadarChart({ analysis }: { analysis: StockAnalysis }) {
   const bandFill = scoreBandFill(analysis.score_total)
 
   return (
-    <div className="flex flex-wrap items-center gap-5">
-      <svg width="140" height="140" viewBox="0 0 140 140" className="shrink-0">
+    <div className="flex flex-wrap items-center gap-8">
+      <svg width="190" height="190" viewBox="0 0 190 190" className="shrink-0">
         <polygon points={gridPoints} fill="none" stroke="#ddd" strokeWidth="1" />
         <polygon points={dataPoints} fill={bandFill} stroke={bandHex} strokeWidth="1.5" />
       </svg>
-      <div className="space-y-1.5 text-xs text-memo-ink">
+      <div className="space-y-2 text-sm text-memo-ink">
         {RADAR_DIMENSIONS.map((d, i) => {
           const v = values[i]
           return (
-            <div key={d.key} className="flex items-center gap-2">
-              <span className="inline-block h-2 w-2 rounded-full" style={{ background: scoreBandHex(v) }} />
+            <div key={d.key} className="flex items-center gap-2.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: scoreBandHex(v) }} />
               <span>
                 {d.label} {v !== null && v !== undefined ? v.toFixed(0) : '–'}
               </span>

@@ -253,10 +253,15 @@ export function buildAnalysisPdf(analysis: StockAnalysis): jsPDF {
   }
 
   // ===================== Seite 1: Kopfbereich + Quick-Check =====================
+  // Layout: linke Spalte (Ticker/Sektor, Name+Score+Wort in einer Zeile,
+  // Meta-Zeile), rechte Spalte (Radar+Legende, deutlich groesser) - beide
+  // Spalten nebeneinander auf Hoehe des Kopfbereichs, wie im App-Header.
 
   const score = analysis.score_total
   const meta = analysis.chart_data?.profileMeta
   const marketCapText = formatMarketCap(meta?.marketCap, analysis.currency)
+  const RADAR_COL_X = 128
+  const headerTopY = y
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
@@ -266,23 +271,26 @@ export function buildAnalysisPdf(analysis: StockAnalysis): jsPDF {
     MARGIN_X,
     y
   )
-  doc.setFont('times', 'bold')
-  doc.setFontSize(9)
-  doc.text('SCORE', pageWidth - MARGIN_X, y, { align: 'right' })
   y += 8
 
   doc.setFont('times', 'bold')
   doc.setFontSize(20)
   setColor(INK)
   doc.text(analysis.company_name ?? analysis.ticker, MARGIN_X, y)
-  doc.setFontSize(22)
-  doc.text(score != null ? score.toFixed(0) : '–', pageWidth - MARGIN_X, y, { align: 'right' })
-  y += 6
+  const nameWidth = doc.getTextWidth(analysis.company_name ?? analysis.ticker)
+
+  doc.setFontSize(15)
+  const scoreText = score != null ? score.toFixed(0) : '–'
+  const scoreX = MARGIN_X + nameWidth + 6
+  doc.text(scoreText, scoreX, y)
+  const scoreWidth = doc.getTextWidth(scoreText)
+
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   setColor(scoreBandColor(score))
-  doc.text(scoreLabel(score), pageWidth - MARGIN_X, y, { align: 'right' })
-  y += 6
+  doc.text(scoreLabel(score), scoreX + scoreWidth + 3, y)
+  setColor(INK)
+  y += 7
 
   if (marketCapText || meta?.industry || meta?.exchange) {
     doc.setFont('helvetica', 'normal')
@@ -296,30 +304,33 @@ export function buildAnalysisPdf(analysis: StockAnalysis): jsPDF {
     doc.text(metaParts.join('   ·   '), MARGIN_X, y)
     y += 8
   }
+  const leftColBottomY = y
 
-  divider()
-  y += 4
-
-  // Radar (links) + Legende (rechts daneben), gleiche Geometrie wie im
-  // App-Kopfbereich.
+  // Radar + ausgeschriebene Legende daneben, deutlich groesser als zuvor -
+  // gleiche Geometrie-Formel wie vorher, nur Position/Groesse geaendert.
   const radarValues = RADAR_DIMENSIONS.map((d) => analysis[d.key] as number | null)
-  const radarCx = MARGIN_X + 16
-  const radarCy = y + 16
-  ensureSpace(36)
-  drawRadar(radarCx, radarCy, 14, radarValues, scoreBandColor(score))
+  const radarR = 22
+  const radarCx = RADAR_COL_X + radarR
+  const radarCy = headerTopY + 8 + radarR
+  drawRadar(radarCx, radarCy, radarR, radarValues, scoreBandColor(score))
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
-  let legendY = y + 6
+  const legendX = radarCx + radarR + 10
+  let legendY = radarCy - radarR + 7
   RADAR_DIMENSIONS.forEach((d, i) => {
     const v = radarValues[i]
     const c = scoreBandColor(v)
     doc.setFillColor(c[0], c[1], c[2])
-    doc.circle(MARGIN_X + 38, legendY - 1.2, 1.2, 'F')
+    doc.circle(legendX, legendY - 1.2, 1.3, 'F')
     setColor(INK)
-    doc.text(`${d.label} ${v != null ? v.toFixed(0) : '–'}`, MARGIN_X + 42, legendY)
-    legendY += 5.5
+    doc.text(`${d.label} ${v != null ? v.toFixed(0) : '–'}`, legendX + 5, legendY)
+    legendY += 6.5
   })
-  y += 36
+  const radarBottomY = radarCy + radarR + 6
+
+  y = Math.max(leftColBottomY, radarBottomY)
+  divider()
+  y += 4
 
   const warnings = normalizeWarnings(analysis.warnings)
   if (warnings.length > 0) {
