@@ -132,11 +132,11 @@ export function AnalysePage() {
   }
 
   if (loading) {
-    return <p className="text-sm text-navy-500">Lade Analyse...</p>
+    return <p className="text-sm text-memo-muted">Lade Analyse...</p>
   }
 
   if (!analysis) {
-    return <p className="text-sm text-navy-500">Keine Analyse für {ticker} gefunden.</p>
+    return <p className="text-sm text-memo-muted">Keine Analyse für {ticker} gefunden.</p>
   }
 
   const isPending = analysis.status === 'pending' || analysis.status === 'running'
@@ -146,7 +146,7 @@ export function AnalysePage() {
       <div className="flex flex-col items-center justify-center rounded-xl border border-navy-200 bg-white py-20 text-center shadow-card">
         <div className="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-navy-200 border-t-gold-500" />
         <h2 className="text-lg font-semibold text-navy-950">Analyse läuft</h2>
-        <p className="mt-1 text-sm text-navy-600">
+        <p className="mt-1 text-sm text-memo-muted">
           Analyse für {ticker} läuft, dauert ca. 20–40 Sekunden.
         </p>
       </div>

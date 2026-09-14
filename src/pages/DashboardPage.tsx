@@ -147,7 +147,7 @@ export function DashboardPage() {
           </button>
         </div>
         {selected && (
-          <p className="mt-2 text-xs text-navy-600">
+          <p className="mt-2 text-xs text-memo-muted">
             Ausgewählt: <span className="font-semibold text-gold-500">{selected.symbol}</span> —{' '}
             {selected.name}
           </p>
@@ -158,9 +158,9 @@ export function DashboardPage() {
       <section>
         <h2 className="mb-3 text-base font-semibold text-navy-950">Letzte Analysen (24h)</h2>
         {recentLoading ? (
-          <p className="text-sm text-navy-500">Lade...</p>
+          <p className="text-sm text-memo-muted">Lade...</p>
         ) : recent.length === 0 ? (
-          <p className="text-sm text-navy-500">Noch keine Analysen in den letzten 24h.</p>
+          <p className="text-sm text-memo-muted">Noch keine Analysen in den letzten 24h.</p>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {recent.map((a) => (
@@ -186,11 +186,11 @@ export function DashboardPage() {
           <h2 className="text-base font-semibold text-navy-950">Meine Watchlist</h2>
           {selectedTickers.size > 0 && (
             <>
-              <span className="text-xs text-navy-500">{selectedTickers.size} ausgewählt</span>
+              <span className="text-xs text-memo-muted">{selectedTickers.size} ausgewählt</span>
               <button
                 disabled
                 title="Batch-Analyse folgt in einem späteren Update"
-                className="cursor-not-allowed rounded-md border border-navy-200 px-3 py-1 text-xs font-medium text-navy-400"
+                className="cursor-not-allowed rounded-md border border-navy-200 px-3 py-1 text-xs font-medium text-memo-muted"
               >
                 Batch-Analyse (bald verfügbar)
               </button>
@@ -198,9 +198,9 @@ export function DashboardPage() {
           )}
         </div>
         {watchlistLoading ? (
-          <p className="text-sm text-navy-500">Lade...</p>
+          <p className="text-sm text-memo-muted">Lade...</p>
         ) : watchlist.length === 0 ? (
-          <p className="text-sm text-navy-500">Deine Watchlist ist leer.</p>
+          <p className="text-sm text-memo-muted">Deine Watchlist ist leer.</p>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {watchlist.map((w) => (
@@ -271,7 +271,7 @@ function DashboardTile({
           className="absolute right-3.5 top-3.5 h-4 w-4 accent-navy-700"
         />
       )}
-      <p className="truncate pr-6 text-xs text-navy-500">
+      <p className="truncate pr-6 text-xs text-memo-muted">
         {ticker}
         {sector ? ` · ${sector}` : ''}
       </p>
@@ -280,10 +280,10 @@ function DashboardTile({
         <span className={`text-2xl font-semibold ${score == null ? 'text-memo-grau' : 'text-navy-950'}`}>
           {score ?? '–'}
         </span>
-        <span className="whitespace-nowrap text-[11px] text-navy-400">{scoreLabel}</span>
+        <span className="whitespace-nowrap text-[11px] text-memo-muted">{scoreLabel}</span>
       </div>
       <div className="flex items-center justify-between">
-        <span className="text-xs text-navy-400">{meta ?? ''}</span>
+        <span className="text-xs text-memo-muted">{meta ?? ''}</span>
         <button
           onClick={(e) => {
             e.stopPropagation()
@@ -292,7 +292,7 @@ function DashboardTile({
           disabled={downloading}
           title={`PDF für ${ticker} herunterladen`}
           aria-label={`PDF für ${ticker} herunterladen`}
-          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-navy-400 transition-colors hover:bg-navy-100 hover:text-gold-500 disabled:opacity-50"
+          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-memo-muted transition-colors hover:bg-navy-100 hover:text-gold-500 disabled:opacity-50"
         >
           {downloading ? (
             <span className="h-3 w-3 animate-spin rounded-full border-2 border-navy-200 border-t-gold-500" />
