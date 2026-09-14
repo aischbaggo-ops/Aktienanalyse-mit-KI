@@ -406,7 +406,12 @@ export function DashboardPage() {
                 sector={w.stock_analyses?.sector ?? null}
                 name={w.stock_analyses?.company_name ?? w.ticker}
                 score={w.stock_analyses?.score_total ?? null}
-                scoreLabel={`seit ${new Date(w.added_at).toLocaleDateString('de-DE')}`}
+                scoreLabel={
+                  w.stock_analyses?.updated_at
+                    ? `Analysiert: ${new Date(w.stock_analyses.updated_at).toLocaleString('de-DE')}`
+                    : 'Noch nicht analysiert'
+                }
+                meta={`In Watchlist seit ${new Date(w.added_at).toLocaleDateString('de-DE')}`}
                 onClick={() => navigate(`/analyse/${encodeURIComponent(w.ticker)}`)}
                 onDownloadPdf={() => handleDownloadPdf(w.ticker)}
                 downloading={downloadingTicker === w.ticker}
