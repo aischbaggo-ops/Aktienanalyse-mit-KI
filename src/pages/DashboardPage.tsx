@@ -123,14 +123,14 @@ export function DashboardPage() {
         </div>
       )}
 
-      <section className="rounded-xl border border-navy-200 bg-white p-6 shadow-card">
+      <section className="rounded-xl border border-memo-line bg-white p-6 shadow-card">
         <h2 className="mb-4 text-base font-semibold text-navy-950">Aktie analysieren</h2>
         <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
           <SymbolSearch onSelect={setSelected} />
           <select
             value={maxAge}
             onChange={(e) => setMaxAge(e.target.value as MaxAge)}
-            className="rounded-lg border border-navy-200 bg-navy-50 px-3 py-2.5 text-sm text-navy-950 outline-none focus:border-gold-500"
+            className="rounded-lg border border-memo-line bg-white px-3 py-2.5 text-sm text-navy-950 outline-none focus:border-memo-ink"
           >
             {MAX_AGE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -141,14 +141,14 @@ export function DashboardPage() {
           <button
             onClick={handleAnalyse}
             disabled={!selected || analysing}
-            className="rounded-lg bg-gold-500 px-5 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-gold-400 disabled:opacity-50"
+            className="rounded-lg bg-memo-ink px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {analysing ? 'Analysiere...' : 'Analysieren'}
           </button>
         </div>
         {selected && (
           <p className="mt-2 text-xs text-memo-muted">
-            Ausgewählt: <span className="font-semibold text-gold-500">{selected.symbol}</span> —{' '}
+            Ausgewählt: <span className="font-analyst text-memo-ink">{selected.symbol}</span> —{' '}
             {selected.name}
           </p>
         )}
@@ -190,7 +190,7 @@ export function DashboardPage() {
               <button
                 disabled
                 title="Batch-Analyse folgt in einem späteren Update"
-                className="cursor-not-allowed rounded-md border border-navy-200 px-3 py-1 text-xs font-medium text-memo-muted"
+                className="cursor-not-allowed rounded-md border border-memo-line px-3 py-1 text-xs font-medium text-memo-muted"
               >
                 Batch-Analyse (bald verfügbar)
               </button>
@@ -292,10 +292,10 @@ function DashboardTile({
           disabled={downloading}
           title={`PDF für ${ticker} herunterladen`}
           aria-label={`PDF für ${ticker} herunterladen`}
-          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-memo-muted transition-colors hover:bg-navy-100 hover:text-gold-500 disabled:opacity-50"
+          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-memo-muted transition-colors hover:bg-memo-paper hover:text-memo-ink disabled:opacity-50"
         >
           {downloading ? (
-            <span className="h-3 w-3 animate-spin rounded-full border-2 border-navy-200 border-t-gold-500" />
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-memo-line border-t-memo-ink" />
           ) : (
             <svg
               xmlns="http://www.w3.org/2000/svg"

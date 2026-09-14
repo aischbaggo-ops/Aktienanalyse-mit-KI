@@ -63,7 +63,7 @@ export function SymbolSearch({ onSelect }: SymbolSearchProps) {
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => results.length > 0 && setOpen(true)}
         placeholder="Ticker oder Firmenname suchen..."
-        className="w-full rounded-lg border border-navy-200 bg-navy-50 px-4 py-2.5 text-sm text-navy-950 placeholder-memo-muted outline-none transition-colors focus:border-gold-500"
+        className="w-full rounded-lg border border-memo-line bg-white px-4 py-2.5 text-sm text-navy-950 placeholder-memo-muted outline-none transition-colors focus:border-memo-ink"
       />
       {loading && (
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-memo-muted">
@@ -72,7 +72,7 @@ export function SymbolSearch({ onSelect }: SymbolSearchProps) {
       )}
 
       {open && (error || results.length > 0) && (
-        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-navy-200 bg-white shadow-xl">
+        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-memo-line bg-white shadow-xl">
           {error && <div className="px-4 py-2.5 text-sm text-ampel-red">{error}</div>}
           {!error &&
             results.map((r) => (
@@ -83,9 +83,9 @@ export function SymbolSearch({ onSelect }: SymbolSearchProps) {
                   setQuery(`${r.symbol} - ${r.name}`)
                   setOpen(false)
                 }}
-                className="block w-full px-4 py-2.5 text-left text-sm text-navy-800 transition-colors hover:bg-navy-50"
+                className="block w-full px-4 py-2.5 text-left text-sm text-navy-800 transition-colors hover:bg-memo-paper"
               >
-                <span className="font-semibold text-gold-500">{r.symbol}</span>
+                <span className="font-analyst text-memo-ink">{r.symbol}</span>
                 <span className="text-navy-700"> - {r.name}</span>
                 {r.currency && <span className="text-memo-muted"> ({r.currency})</span>}
               </button>
