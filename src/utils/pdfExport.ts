@@ -498,10 +498,13 @@ export function buildAnalysisPdf(analysis: StockAnalysis): jsPDF {
   }
   y += 3
 
-  function fundamentalRow(label: string, values: (number | null)[]) {
+  // unit='' fuer Stueckzahlen (Aktienanzahl) - fmtCompact() haengt sonst
+  // die Waehrung an, obwohl es kein Geldbetrag ist (Bug-Fix: "15.0 Mrd.
+  // USD" fuer die Aktienanzahl).
+  function fundamentalRow(label: string, values: (number | null)[], unit: string = currency) {
     const latest = values.length > 0 ? values[values.length - 1] : null
     const prior = values.length > 1 ? values[values.length - 2] : null
-    kvRow(label, fmtCompact(latest, currency), { sub: prior != null ? `Vorjahr: ${fmtCompact(prior, currency)}` : undefined })
+    kvRow(label, fmtCompact(latest, unit), { sub: prior != null ? `Vorjahr: ${fmtCompact(prior, unit)}` : undefined })
   }
 
   if (fs) {
@@ -520,7 +523,7 @@ export function buildAnalysisPdf(analysis: StockAnalysis): jsPDF {
     kvRow('Operative Marge', fmtPct(latestMargin(fs.operatingMargin)))
     kvRow('Nettomarge', fmtPct(latestMargin(fs.netMargin)))
     if (fs.goodwill.some((v) => v != null && v !== 0)) fundamentalRow('Goodwill', fs.goodwill)
-    fundamentalRow('Aktienanzahl', fs.sharesOut)
+    fundamentalRow('Aktienanzahl', fs.sharesOut, '')
     fundamentalRow('Schulden (brutto)', fs.totalDebt)
     if (fs.isDividendPayer) fundamentalRow('Dividenden', fs.dividendsPaid)
   } else {
@@ -633,7 +636,6 @@ export function buildAnalysisPdf(analysis: StockAnalysis): jsPDF {
 
   const footerLine = [
     `Datenquelle: ${analysis.data_source ?? '–'}`,
-    analysis.cost_usd_claude != null ? `Kosten (Claude): $${analysis.cost_usd_claude.toFixed(4)}` : undefined,
     `Aktualisiert: ${new Date(analysis.updated_at).toLocaleString('de-DE')}`,
   ]
     .filter(Boolean)
