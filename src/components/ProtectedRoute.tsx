@@ -6,7 +6,7 @@ export function ProtectedRoute() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-navy-50 text-navy-600">
+      <div className="flex h-screen items-center justify-center bg-memo-paper text-navy-600">
         Lade...
       </div>
     )
@@ -24,7 +24,7 @@ export function AdminRoute() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-navy-50 text-navy-600">
+      <div className="flex h-screen items-center justify-center bg-memo-paper text-navy-600">
         Lade...
       </div>
     )

@@ -5,7 +5,7 @@ export function Layout() {
   const { user, isAdmin, signOut } = useAuth()
 
   return (
-    <div className="min-h-screen bg-navy-50 text-navy-950">
+    <div className="min-h-screen bg-memo-paper text-navy-950">
       <header className="border-b border-memo-line bg-memo-paper">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <span className="font-analyst text-lg text-memo-ink">Aktienanalyse mit KI</span>
