@@ -7,7 +7,12 @@ export interface SymbolSearchResult {
   currency?: string
 }
 
-export async function searchSymbols(query: string): Promise<SymbolSearchResult[]> {
+export interface SymbolSearchResponse {
+  results: SymbolSearchResult[]
+  rateLimited: boolean
+}
+
+export async function searchSymbols(query: string): Promise<SymbolSearchResponse> {
   const url = `${SYMBOL_SEARCH_WEBHOOK_URL}?q=${encodeURIComponent(query)}`
   const res = await fetch(url, { method: 'GET' })
   if (!res.ok) {
@@ -16,11 +21,14 @@ export async function searchSymbols(query: string): Promise<SymbolSearchResult[]
   const data = await res.json()
   // Webhook kann entweder ein Array direkt oder { results: [...] } liefern
   const list = Array.isArray(data) ? data : data.results ?? data.data ?? []
-  return list.map((item: Record<string, unknown>) => ({
-    symbol: String(item.symbol ?? item.ticker ?? ''),
-    name: String(item.name ?? item.companyName ?? ''),
-    currency: item.currency ? String(item.currency) : undefined,
-  }))
+  return {
+    results: list.map((item: Record<string, unknown>) => ({
+      symbol: String(item.symbol ?? item.ticker ?? ''),
+      name: String(item.name ?? item.companyName ?? ''),
+      currency: item.currency ? String(item.currency) : undefined,
+    })),
+    rateLimited: data.rate_limited === true,
+  }
 }
 
 export type AnalyseSource = 'cache' | 'processing'

@@ -24,11 +24,15 @@ export function SymbolSearch({ onSelect }: SymbolSearchProps) {
     setLoading(true)
     setError(null)
     searchSymbols(debouncedQuery)
-      .then((res) => {
-        if (!cancelled) {
-          setResults(res)
+      .then(({ results, rateLimited }) => {
+        if (cancelled) return
+        if (results.length === 0 && rateLimited) {
+          setError('Suche vorübergehend nicht verfügbar — bitte in Kürze erneut versuchen.')
           setOpen(true)
+          return
         }
+        setResults(results)
+        setOpen(true)
       })
       .catch(() => {
         if (!cancelled) setError('Symbol-Suche fehlgeschlagen.')
