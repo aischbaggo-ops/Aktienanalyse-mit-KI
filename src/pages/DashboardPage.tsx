@@ -188,6 +188,22 @@ export function DashboardPage() {
     batchCancelRef.current = true
   }
 
+  // Verhindert versehentliches Verlassen der Seite waehrend ein Batch
+  // laeuft (Klick auf eine Kachel wuerde sonst kommentarlos mitten in der
+  // Warteschlange wegnavigieren). Bei Bestaetigung wird die Warteschlange
+  // ueber denselben Mechanismus wie der "Abbrechen"-Button gestoppt -
+  // laufende Einzelanalyse laeuft zu Ende, keine weiteren werden gestartet.
+  function navigateToAnalyse(ticker: string) {
+    if (batchPhase === 'running') {
+      const proceed = window.confirm(
+        `Ein Batch-Lauf ist noch aktiv (${batchIndex + 1} von ${batchTickers.length}). Seite trotzdem verlassen? Die restliche Warteschlange wird dann abgebrochen.`
+      )
+      if (!proceed) return
+      batchCancelRef.current = true
+    }
+    navigate(`/analyse/${encodeURIComponent(ticker)}`)
+  }
+
   function closeBatchSummary() {
     setBatchPhase('idle')
     setBatchTickers([])
@@ -293,7 +309,7 @@ export function DashboardPage() {
                 score={a.score_total}
                 scoreLabel={`Status: ${a.status}`}
                 meta={new Date(a.updated_at).toLocaleString('de-DE')}
-                onClick={() => navigate(`/analyse/${encodeURIComponent(a.ticker)}`)}
+                onClick={() => navigateToAnalyse(a.ticker)}
                 onDownloadPdf={() => handleDownloadPdf(a.ticker)}
                 downloading={downloadingTicker === a.ticker}
               />
@@ -412,7 +428,7 @@ export function DashboardPage() {
                     : 'Noch nicht analysiert'
                 }
                 meta={`In Watchlist seit ${new Date(w.added_at).toLocaleDateString('de-DE')}`}
-                onClick={() => navigate(`/analyse/${encodeURIComponent(w.ticker)}`)}
+                onClick={() => navigateToAnalyse(w.ticker)}
                 onDownloadPdf={() => handleDownloadPdf(w.ticker)}
                 downloading={downloadingTicker === w.ticker}
                 checked={selectedTickers.has(w.ticker)}
