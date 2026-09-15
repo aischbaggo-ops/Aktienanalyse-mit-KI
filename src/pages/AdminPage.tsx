@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { RequestLog } from '../types/database'
+import { SeriesBarChart } from '../components/memo/Charts'
+
+// Manuell eingetragen, NICHT von FMP abgefragt (es gibt keinen Endpoint,
+// der das eigene Tageskontingent zurueckliefert) - bei Plan-Wechsel
+// anpassen. Dient nur als grobe visuelle Referenzlinie im Auslastungs-
+// Chart, nicht als verifizierter Live-Wert.
+const FMP_DAILY_LIMIT = 250
 
 interface Metrics {
   requestsToday: number
@@ -15,6 +22,9 @@ interface Metrics {
   dataGapRatePct: number | null
   deviationCount: number
   deviationRatePct: number | null
+  runsToday: number
+  searchesToday: number
+  hourlyRuns: number[]
 }
 
 type FailedRequest = Pick<RequestLog, 'ticker' | 'requested_at' | 'error_message'>
@@ -57,6 +67,8 @@ export function AdminPage() {
         { data: dataGapRows, error: e12 },
         { count: deviationCount, error: e13 },
         { data: deviationRows, error: e14 },
+        { data: runsTodayRows, error: e15 },
+        { count: searchesTodayCount, error: e16 },
       ] = await Promise.all([
         supabase.from('request_log').select('*', { count: 'exact', head: true }),
         supabase
@@ -113,10 +125,20 @@ export function AdminPage() {
           .eq('deviation_triggered', true)
           .order('requested_at', { ascending: false })
           .limit(10),
+        supabase
+          .from('request_log')
+          .select('requested_at')
+          .eq('source', 'processing')
+          .gte('requested_at', todayStart.toISOString())
+          .limit(2000),
+        supabase
+          .from('search_log')
+          .select('*', { count: 'exact', head: true })
+          .gte('requested_at', todayStart.toISOString()),
       ])
 
       const firstError =
-        e1 || e2 || e3 || e4 || e5 || e6 || e7 || e8 || e9 || e10 || e11 || e12 || e13 || e14
+        e1 || e2 || e3 || e4 || e5 || e6 || e7 || e8 || e9 || e10 || e11 || e12 || e13 || e14 || e15 || e16
       if (firstError) throw firstError
 
       const tickerCounts = new Map<string, number>()
@@ -148,6 +170,12 @@ export function AdminPage() {
       const dataGaps = dataGapCount ?? 0
       const deviations = deviationCount ?? 0
 
+      const hourlyRuns = new Array(24).fill(0) as number[]
+      for (const row of runsTodayRows ?? []) {
+        const hour = new Date(row.requested_at).getHours()
+        hourlyRuns[hour] += 1
+      }
+
       setMetrics({
         requestsToday: todayCount ?? 0,
         requestsTotal: total,
@@ -161,6 +189,9 @@ export function AdminPage() {
         dataGapRatePct: finished > 0 ? (dataGaps / finished) * 100 : null,
         deviationCount: deviations,
         deviationRatePct: done > 0 ? (deviations / done) * 100 : null,
+        runsToday: (runsTodayRows ?? []).length,
+        searchesToday: searchesTodayCount ?? 0,
+        hourlyRuns,
       })
       setRequests(recentRequests ?? [])
       setFailedRequests(failedRows ?? [])
@@ -185,10 +216,20 @@ export function AdminPage() {
 
   if (!metrics) return null
 
+  // Laufende Summe statt Laeufe-pro-Stunde: erst dadurch wird die 250er-
+  // Referenzlinie aussagekraeftig (Fruehwarn-Prinzip - laeuft die Linie im
+  // Tagesverlauf auf die Grenze zu, statt einzelner, an sich unauffaelliger
+  // Stundenwerte).
+  const cumulativeRuns = metrics.hourlyRuns.reduce<number[]>((acc, v, i) => {
+    acc.push((acc[i - 1] ?? 0) + v)
+    return acc
+  }, [])
+
   return (
     <div className="space-y-10">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <Kpi label="Anfragen heute" value={metrics.requestsToday.toString()} />
+        <Kpi label="Läufe heute (neu)" value={metrics.runsToday.toString()} />
         <Kpi label="Anfragen gesamt" value={metrics.requestsTotal.toString()} />
         <Kpi label="Kosten (Claude)" value={`$${metrics.totalCostUsd.toFixed(2)}`} />
         <Kpi label="Cache-Trefferquote" value={`${metrics.cacheHitRatePct.toFixed(1)}%`} tone="plus" />
@@ -220,6 +261,28 @@ export function AdminPage() {
           }
           tone={metrics.deviationRatePct != null && metrics.deviationRatePct > 20 ? 'minus' : undefined}
         />
+      </div>
+
+      <div>
+        <p className="mb-1 text-xs font-medium uppercase tracking-wide text-memo-muted">
+          Auslastung heute (eigene Analyse-Läufe)
+        </p>
+        <p className="mb-3 text-xs text-memo-muted">
+          Kumulierte Summe eigener Analyse-Läufe im Tagesverlauf (request_log, source=processing),
+          nicht die tatsächliche FMP-Auslastung — Ticker-Suche ist hier nicht enthalten, eine Analyse
+          löst ≈13 FMP-Aufrufe aus. Gestrichelte Linie: manuell eingetragenes Tageskontingent
+          ({FMP_DAILY_LIMIT}), nicht von FMP abgefragt — läuft die Kurve darauf zu, wird es eng.
+        </p>
+        <SeriesBarChart
+          years={Array.from({ length: 24 }, (_, h) => h.toString().padStart(2, '0'))}
+          values={cumulativeRuns}
+          height={140}
+          formatValue={(v) => `${v} Lauf${v === 1 ? '' : 'e'} kumuliert`}
+          referenceLine={{ value: FMP_DAILY_LIMIT, label: `${FMP_DAILY_LIMIT}/Tag (manuell)` }}
+        />
+        <p className="mt-2 text-xs text-memo-muted">
+          Suchanfragen heute (separat erfasst, ab jetzt): {metrics.searchesToday}
+        </p>
       </div>
 
       <div>

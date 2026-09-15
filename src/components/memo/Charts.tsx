@@ -228,12 +228,14 @@ export function SeriesBarChart({
   signed = false,
   height = 110,
   formatValue,
+  referenceLine,
 }: {
   years: string[]
   values: (number | null)[]
   signed?: boolean
   height?: number
   formatValue?: (v: number) => string
+  referenceLine?: { value: number; label: string }
 }) {
   const validIdx = values.map((v, i) => (typeof v === 'number' ? i : -1)).filter((i) => i >= 0)
   if (validIdx.length === 0) return <EmptyNote text="Keine Daten verfügbar." />
@@ -247,13 +249,32 @@ export function SeriesBarChart({
   const plotTopY = marginTop
 
   const validValues = validIdx.map((i) => values[i] as number)
-  const maxAbs = Math.max(1e-9, ...validValues.map((v) => Math.abs(v)))
+  const maxAbs = Math.max(1e-9, referenceLine?.value ?? 0, ...validValues.map((v) => Math.abs(v)))
   const barGap = 5
   const barW = plotW / values.length - barGap
+  const availHUnsigned = height - marginBottom - plotTopY
+  const referenceY = referenceLine ? height - marginBottom - (referenceLine.value / maxAbs) * availHUnsigned : null
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height }} preserveAspectRatio="none">
       {signed && <line x1={marginLeft} x2={width - 8} y1={zeroY} y2={zeroY} stroke={COLOR_LINE} strokeWidth={1} />}
+      {referenceLine && referenceY != null && (
+        <g>
+          <title>{referenceLine.label}</title>
+          <line
+            x1={marginLeft}
+            x2={width - 8}
+            y1={referenceY}
+            y2={referenceY}
+            stroke={COLOR_MUTED}
+            strokeWidth={1}
+            strokeDasharray="3 3"
+          />
+          <text x={width - 8} y={referenceY - 3} textAnchor="end" fontSize={7} fill={COLOR_MUTED}>
+            {referenceLine.label}
+          </text>
+        </g>
+      )}
       {values.map((v, i) => {
         const x = marginLeft + i * (barW + barGap)
         if (typeof v !== 'number') {
@@ -273,7 +294,7 @@ export function SeriesBarChart({
             <title>{`${years[i]}: ${formatValue ? formatValue(v) : v}`}</title>
             <rect x={x} y={barY} width={Math.max(2, barW)} height={Math.max(1, barH)} fill={color} rx={1} opacity={0.85} />
             <text x={x + barW / 2} y={height - 4} textAnchor="middle" fontSize={8} fill={COLOR_MUTED}>
-              {years[i]?.slice(2)}
+              {years[i] && years[i].length > 2 ? years[i].slice(2) : years[i]}
             </text>
           </g>
         )

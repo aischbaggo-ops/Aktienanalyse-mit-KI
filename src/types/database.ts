@@ -246,6 +246,14 @@ export interface RequestLog {
   [key: string]: unknown
 }
 
+export interface SearchLog {
+  id?: string
+  query: string
+  rate_limited: boolean
+  requested_at: string
+  [key: string]: unknown
+}
+
 export interface Profile {
   id: string
   is_admin: boolean
@@ -277,6 +285,12 @@ export interface Database {
         Row: Profile
         Insert: Partial<Profile>
         Update: Partial<Profile>
+        Relationships: []
+      }
+      search_log: {
+        Row: SearchLog
+        Insert: Partial<SearchLog>
+        Update: Partial<SearchLog>
         Relationships: []
       }
     }
