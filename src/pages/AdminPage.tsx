@@ -267,6 +267,10 @@ export function AdminPage() {
         <p className="mb-1 text-xs font-medium uppercase tracking-wide text-memo-muted">
           Auslastung heute (eigene Analyse-Läufe)
         </p>
+        <p className="mb-1 font-analyst text-lg text-memo-ink">
+          {metrics.runsToday} von {FMP_DAILY_LIMIT} (manuell, ≈
+          {((metrics.runsToday / FMP_DAILY_LIMIT) * 100).toFixed(0)}%)
+        </p>
         <p className="mb-3 text-xs text-memo-muted">
           Kumulierte Summe eigener Analyse-Läufe im Tagesverlauf (request_log, source=processing),
           nicht die tatsächliche FMP-Auslastung — Ticker-Suche ist hier nicht enthalten, eine Analyse
