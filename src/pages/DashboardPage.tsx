@@ -484,14 +484,21 @@ function DashboardTile({
         highlighted ? 'ring-2 ring-memo-ink ring-offset-2' : ''
       }`}
     >
-      {onToggleChecked && (
-        <input
-          type="checkbox"
-          checked={checked ?? false}
-          onClick={(e) => e.stopPropagation()}
-          onChange={onToggleChecked}
-          className="absolute right-3.5 top-3.5 h-4 w-4 accent-navy-700"
+      {highlighted ? (
+        <span
+          aria-label="Analyse läuft"
+          className="absolute right-3.5 top-3.5 h-4 w-4 animate-spin rounded-full border-2 border-memo-line border-t-memo-ink"
         />
+      ) : (
+        onToggleChecked && (
+          <input
+            type="checkbox"
+            checked={checked ?? false}
+            onClick={(e) => e.stopPropagation()}
+            onChange={onToggleChecked}
+            className="absolute right-3.5 top-3.5 h-4 w-4 accent-navy-700"
+          />
+        )
       )}
       <p className="truncate pr-6 text-xs text-memo-muted">
         {ticker}
