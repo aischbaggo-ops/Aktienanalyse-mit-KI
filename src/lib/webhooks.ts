@@ -5,6 +5,7 @@ export interface SymbolSearchResult {
   symbol: string
   name: string
   currency?: string
+  isPrimary?: boolean
 }
 
 export interface SymbolSearchResponse {
@@ -26,6 +27,7 @@ export async function searchSymbols(query: string): Promise<SymbolSearchResponse
       symbol: String(item.symbol ?? item.ticker ?? ''),
       name: String(item.name ?? item.companyName ?? ''),
       currency: item.currency ? String(item.currency) : undefined,
+      isPrimary: item.isPrimary === true,
     })),
     rateLimited: data.rate_limited === true,
   }
