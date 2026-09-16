@@ -85,12 +85,12 @@ export function SymbolSearch({ onSelect }: SymbolSearchProps) {
                 }}
                 className="block w-full px-4 py-2.5 text-left text-sm text-navy-800 transition-colors hover:bg-memo-paper"
               >
-                <span className="font-analyst text-memo-ink">{r.symbol}</span>
                 {r.isPrimary && (
-                  <span className="ml-1 text-memo-muted" title="Hauptnotierung">
+                  <span className="mr-1 text-memo-muted" title="Hauptnotierung">
                     ★
                   </span>
                 )}
+                <span className="font-analyst text-memo-ink">{r.symbol}</span>
                 <span className="text-navy-700"> - {r.name}</span>
                 {r.currency && <span className="text-memo-muted"> ({r.currency})</span>}
               </button>
