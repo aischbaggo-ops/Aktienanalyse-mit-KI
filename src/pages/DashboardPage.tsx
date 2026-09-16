@@ -306,6 +306,7 @@ export function DashboardPage() {
                 ticker={a.ticker}
                 sector={a.sector}
                 name={a.company_name ?? a.ticker}
+                image={a.chart_data?.profileMeta?.image}
                 score={a.score_total}
                 scoreLabel={`Status: ${a.status}`}
                 meta={new Date(a.updated_at).toLocaleString('de-DE')}
@@ -421,6 +422,7 @@ export function DashboardPage() {
                 ticker={w.ticker}
                 sector={w.stock_analyses?.sector ?? null}
                 name={w.stock_analyses?.company_name ?? w.ticker}
+                image={w.stock_analyses?.chart_data?.profileMeta?.image}
                 score={w.stock_analyses?.score_total ?? null}
                 scoreLabel={
                   w.stock_analyses?.updated_at
@@ -454,6 +456,7 @@ function DashboardTile({
   ticker,
   sector,
   name,
+  image,
   score,
   scoreLabel,
   meta,
@@ -467,6 +470,7 @@ function DashboardTile({
   ticker: string
   sector: string | null
   name: string
+  image?: string | null
   score: number | null
   scoreLabel: string
   meta?: string
@@ -500,11 +504,22 @@ function DashboardTile({
           />
         )
       )}
-      <p className="truncate pr-6 text-xs text-memo-muted">
-        {ticker}
-        {sector ? ` · ${sector}` : ''}
-      </p>
-      <p className="mb-2.5 mt-0.5 truncate pr-6 font-analyst text-lg text-navy-950">{name}</p>
+      <div className="flex items-start gap-2">
+        {image && (
+          <img
+            src={image}
+            alt=""
+            className="mt-0.5 h-6 w-6 flex-shrink-0 rounded-sm border border-memo-line2 bg-white object-contain"
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="truncate pr-6 text-xs text-memo-muted">
+            {ticker}
+            {sector ? ` · ${sector}` : ''}
+          </p>
+          <p className="mb-2.5 mt-0.5 truncate pr-6 font-analyst text-lg text-navy-950">{name}</p>
+        </div>
+      </div>
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <span className={`text-2xl font-semibold ${score == null ? 'text-memo-grau' : 'text-navy-950'}`}>
           {score ?? '–'}
