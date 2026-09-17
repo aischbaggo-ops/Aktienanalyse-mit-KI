@@ -8,6 +8,7 @@ import { LoginPage } from './pages/LoginPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { AnalysePage } from './pages/AnalysePage'
 import { AdminPage } from './pages/AdminPage'
+import { KontoPage } from './pages/KontoPage'
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
             <Route element={<Layout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/analyse/:ticker" element={<AnalysePage />} />
+              <Route path="/konto" element={<KontoPage />} />
             </Route>
             <Route element={<AdminRoute />}>
               <Route element={<AdminLayout />}>

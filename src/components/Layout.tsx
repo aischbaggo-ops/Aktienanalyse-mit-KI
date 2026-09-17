@@ -33,6 +33,14 @@ export function Layout() {
 
           <div className="flex items-center gap-3">
             <span className="hidden text-xs text-memo-muted sm:inline">{user?.email}</span>
+            <NavLink
+              to="/konto"
+              className={({ isActive }) =>
+                isActive ? 'text-xs text-memo-ink' : 'text-xs text-memo-muted hover:text-memo-ink'
+              }
+            >
+              Konto
+            </NavLink>
             <button onClick={() => signOut()} className="text-xs text-memo-muted hover:text-memo-ink">
               Abmelden
             </button>

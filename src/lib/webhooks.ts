@@ -1,5 +1,6 @@
 const ANALYSE_WEBHOOK_URL = import.meta.env.VITE_ANALYSE_WEBHOOK_URL
 const SYMBOL_SEARCH_WEBHOOK_URL = import.meta.env.VITE_SYMBOL_SEARCH_WEBHOOK_URL
+const DELETE_ACCOUNT_WEBHOOK_URL = import.meta.env.VITE_DELETE_ACCOUNT_WEBHOOK_URL
 
 export interface SymbolSearchResult {
   symbol: string
@@ -58,4 +59,22 @@ export async function requestAnalyse(payload: AnalyseRequestPayload): Promise<An
     throw new Error(`Analyse-Anfrage fehlgeschlagen (${res.status})`)
   }
   return res.json()
+}
+
+// Anders als requestAnalyse()/searchSymbols() wird hier bewusst KEINE
+// user_id im Body mitgeschickt - die Function ermittelt den Nutzer aus dem
+// Authorization-Bearer-Token selbst (server-seitig validiert), damit ein
+// Client niemals ein fremdes Konto loeschen kann, egal was im Body steht.
+export async function deleteOwnAccount(accessToken: string): Promise<void> {
+  const res = await fetch(DELETE_ACCOUNT_WEBHOOK_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || data.error) {
+    throw new Error(data.error ?? `Konto-Loeschung fehlgeschlagen (${res.status})`)
+  }
 }
