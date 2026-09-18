@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import type { RequestLog } from '../types/database'
+import type { RequestLog, FunctionError } from '../types/database'
 import { SeriesBarChart } from '../components/memo/Charts'
 
 // Manuell eingetragen, NICHT von FMP abgefragt (es gibt keinen Endpoint,
@@ -35,12 +35,14 @@ export function AdminPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [requests, setRequests] = useState<RequestLog[]>([])
   const [failedRequests, setFailedRequests] = useState<FailedRequest[]>([])
+  const [functionErrors, setFunctionErrors] = useState<FunctionError[]>([])
   const [dataGapRequests, setDataGapRequests] = useState<DataGapRequest[]>([])
   const [showDataGaps, setShowDataGaps] = useState(false)
   const [deviationRequests, setDeviationRequests] = useState<DeviationRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  const [copiedFnErrorIdx, setCopiedFnErrorIdx] = useState<number | null>(null)
 
   useEffect(() => {
     load()
@@ -70,6 +72,7 @@ export function AdminPage() {
         { data: deviationRows, error: e14 },
         { data: runsTodayRows, error: e15 },
         { count: searchesTodayCount, error: e16 },
+        { data: functionErrorRows, error: e17 },
       ] = await Promise.all([
         supabase.from('request_log').select('*', { count: 'exact', head: true }),
         supabase
@@ -136,10 +139,15 @@ export function AdminPage() {
           .from('search_log')
           .select('*', { count: 'exact', head: true })
           .gte('requested_at', todayStart.toISOString()),
+        supabase
+          .from('function_errors')
+          .select('function_name, user_id, error_message, created_at')
+          .order('created_at', { ascending: false })
+          .limit(20),
       ])
 
       const firstError =
-        e1 || e2 || e3 || e4 || e5 || e6 || e7 || e8 || e9 || e10 || e11 || e12 || e13 || e14 || e15 || e16
+        e1 || e2 || e3 || e4 || e5 || e6 || e7 || e8 || e9 || e10 || e11 || e12 || e13 || e14 || e15 || e16 || e17
       if (firstError) throw firstError
 
       const tickerCounts = new Map<string, number>()
@@ -196,6 +204,7 @@ export function AdminPage() {
       })
       setRequests(recentRequests ?? [])
       setFailedRequests(failedRows ?? [])
+      setFunctionErrors(functionErrorRows ?? [])
       setDataGapRequests(dataGapRows ?? [])
       setDeviationRequests(deviationRows ?? [])
     } catch (err) {
@@ -223,6 +232,22 @@ export function AdminPage() {
     } catch {
       // Clipboard-API kann in unsicheren Kontexten/älteren Browsern fehlen -
       // dann bleibt der Button ohne Feedback, kein harter Fehler noetig.
+    }
+  }
+
+  async function copyFunctionError(r: FunctionError, idx: number) {
+    const text = [
+      `Function: ${r.function_name}`,
+      `Zeitpunkt: ${new Date(r.created_at).toLocaleString('de-DE')}`,
+      `Nutzer: ${r.user_id ? r.user_id.slice(0, 8) : '–'}`,
+      `Fehlermeldung: ${r.error_message}`,
+    ].join('\n')
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedFnErrorIdx(idx)
+      setTimeout(() => setCopiedFnErrorIdx((v) => (v === idx ? null : v)), 1500)
+    } catch {
+      // s.o. copyFailedRequest - kein harter Fehler, wenn Clipboard fehlt.
     }
   }
 
@@ -371,6 +396,54 @@ export function AdminPage() {
                         className="text-xs text-memo-muted hover:text-memo-ink"
                       >
                         {copiedIdx === idx ? 'Kopiert!' : 'Kopieren'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <p className="mb-1 text-xs font-medium uppercase tracking-wide text-memo-muted">
+          Sonstige Fehler (Account/API-Keys)
+        </p>
+        <p className="mb-3 text-xs text-memo-muted">
+          Fehler aus save-api-keys und delete-account, ohne Ticker-Bezug.
+        </p>
+        {functionErrors.length === 0 ? (
+          <p className="text-sm text-memo-muted">Keine sonstigen Fehler protokolliert.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-memo-line2 text-left text-xs uppercase tracking-wide text-memo-muted">
+                  <th className="py-2 pr-4 font-medium">Function</th>
+                  <th className="py-2 pr-4 font-medium">Zeitpunkt</th>
+                  <th className="py-2 pr-4 font-medium">Nutzer</th>
+                  <th className="py-2 pr-4 font-medium">Fehlermeldung</th>
+                  <th className="py-2 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-memo-line2">
+                {functionErrors.map((r, idx) => (
+                  <tr key={idx}>
+                    <td className="py-2.5 pr-4 align-top text-memo-ink">{r.function_name}</td>
+                    <td className="whitespace-nowrap py-2.5 pr-4 align-top text-memo-muted">
+                      {new Date(r.created_at).toLocaleString('de-DE')}
+                    </td>
+                    <td className="whitespace-nowrap py-2.5 pr-4 align-top text-memo-muted">
+                      {r.user_id ? r.user_id.slice(0, 8) : '–'}
+                    </td>
+                    <td className="py-2.5 pr-4 align-top text-memo-minusText">{r.error_message}</td>
+                    <td className="whitespace-nowrap py-2.5 align-top">
+                      <button
+                        onClick={() => copyFunctionError(r, idx)}
+                        className="text-xs text-memo-muted hover:text-memo-ink"
+                      >
+                        {copiedFnErrorIdx === idx ? 'Kopiert!' : 'Kopieren'}
                       </button>
                     </td>
                   </tr>

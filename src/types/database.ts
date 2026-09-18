@@ -254,6 +254,15 @@ export interface SearchLog {
   [key: string]: unknown
 }
 
+export interface FunctionError {
+  id?: string
+  function_name: string
+  user_id: string | null
+  error_message: string
+  created_at: string
+  [key: string]: unknown
+}
+
 export interface Profile {
   id: string
   is_admin: boolean
@@ -306,6 +315,12 @@ export interface Database {
         Row: SearchLog
         Insert: Partial<SearchLog>
         Update: Partial<SearchLog>
+        Relationships: []
+      }
+      function_errors: {
+        Row: FunctionError
+        Insert: Partial<FunctionError>
+        Update: Partial<FunctionError>
         Relationships: []
       }
       user_api_keys: {
