@@ -260,6 +260,21 @@ export interface Profile {
   [key: string]: unknown
 }
 
+// Ciphertext-/IV-Spalten sind ohne das serverseitige Function-Secret
+// wertlos (siehe supabase/functions/_shared/crypto.ts) - werden im
+// Frontend nie zur Anzeige verwendet, nur *_last4/updated_at.
+export interface UserApiKeys {
+  user_id: string
+  fmp_key_ciphertext: string | null
+  fmp_key_iv: string | null
+  fmp_key_last4: string | null
+  claude_key_ciphertext: string | null
+  claude_key_iv: string | null
+  claude_key_last4: string | null
+  updated_at: string
+  [key: string]: unknown
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -291,6 +306,12 @@ export interface Database {
         Row: SearchLog
         Insert: Partial<SearchLog>
         Update: Partial<SearchLog>
+        Relationships: []
+      }
+      user_api_keys: {
+        Row: UserApiKeys
+        Insert: Partial<UserApiKeys>
+        Update: Partial<UserApiKeys>
         Relationships: []
       }
     }

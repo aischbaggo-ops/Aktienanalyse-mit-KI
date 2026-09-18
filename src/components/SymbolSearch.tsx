@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useDebounce } from '../hooks/useDebounce'
 import { searchSymbols, SymbolSearchResult } from '../lib/webhooks'
+import { useAuth } from '../context/AuthContext'
 
 interface SymbolSearchProps {
   onSelect: (result: SymbolSearchResult) => void
 }
 
 export function SymbolSearch({ onSelect }: SymbolSearchProps) {
+  const { session } = useAuth()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SymbolSearchResult[]>([])
   const [loading, setLoading] = useState(false)
@@ -20,10 +22,12 @@ export function SymbolSearch({ onSelect }: SymbolSearchProps) {
       setResults([])
       return
     }
+    const accessToken = session?.access_token
+    if (!accessToken) return
     let cancelled = false
     setLoading(true)
     setError(null)
-    searchSymbols(debouncedQuery)
+    searchSymbols(debouncedQuery, accessToken)
       .then(({ results, rateLimited }) => {
         if (cancelled) return
         if (results.length === 0 && rateLimited) {
@@ -34,8 +38,11 @@ export function SymbolSearch({ onSelect }: SymbolSearchProps) {
         setResults(results)
         setOpen(true)
       })
-      .catch(() => {
-        if (!cancelled) setError('Symbol-Suche fehlgeschlagen.')
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Symbol-Suche fehlgeschlagen.')
+          setOpen(true)
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -43,7 +50,7 @@ export function SymbolSearch({ onSelect }: SymbolSearchProps) {
     return () => {
       cancelled = true
     }
-  }, [debouncedQuery])
+  }, [debouncedQuery, session?.access_token])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {

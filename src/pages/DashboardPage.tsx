@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { requestAnalyse, SymbolSearchResult } from '../lib/webhooks'
@@ -28,7 +28,7 @@ function sleep(ms: number) {
 }
 
 export function DashboardPage() {
-  const { user } = useAuth()
+  const { user, session } = useAuth()
   const navigate = useNavigate()
 
   const [selected, setSelected] = useState<SymbolSearchResult | null>(null)
@@ -46,6 +46,8 @@ export function DashboardPage() {
   const [downloadingTicker, setDownloadingTicker] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
+  const [missingApiKeys, setMissingApiKeys] = useState(false)
+
   const [batchPhase, setBatchPhase] = useState<BatchPhase>('idle')
   const [batchTickers, setBatchTickers] = useState<string[]>([])
   const [batchIndex, setBatchIndex] = useState(0)
@@ -58,6 +60,27 @@ export function DashboardPage() {
     loadRecent()
     loadWatchlist()
   }, [])
+
+  // Rein informativer Hinweis, kein Blocker - Suche/Analyse selbst geben
+  // ohnehin schon eine klare Fehlermeldung, wenn ein Key fehlt (siehe
+  // save-api-keys/analyse-Auftrag). Das hier hilft nur neuen Nutzern, gar
+  // nicht erst zu raetseln, warum die Suche leer bleibt.
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    supabase
+      .from('user_api_keys')
+      .select('fmp_key_last4, claude_key_last4')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return
+        setMissingApiKeys(!data || !data.fmp_key_last4 || !data.claude_key_last4)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [user])
 
   async function loadRecent() {
     setRecentLoading(true)
@@ -138,7 +161,8 @@ export function DashboardPage() {
   }
 
   async function startBatch() {
-    if (!user) return
+    if (!user || !session?.access_token) return
+    const accessToken = session.access_token
     const tickers = batchTickers
     setBatchPhase('running')
     setBatchIndex(0)
@@ -156,12 +180,14 @@ export function DashboardPage() {
       setBatchIndex(i)
       const ticker = tickers[i]
       try {
-        await requestAnalyse({
-          ticker,
-          user_id: user.id,
-          max_age_days: null,
-          force_refresh: true,
-        })
+        await requestAnalyse(
+          {
+            ticker,
+            max_age_days: null,
+            force_refresh: true,
+          },
+          accessToken,
+        )
         const outcome = await waitForAnalysisDone(ticker)
         if (outcome === 'done') {
           setBatchResults((prev) => [...prev, { ticker, success: true }])
@@ -232,18 +258,17 @@ export function DashboardPage() {
   }
 
   async function handleAnalyse() {
-    if (!selected || !user) return
+    if (!selected || !user || !session?.access_token) return
     setAnalysing(true)
     setAnalyseError(null)
     try {
       const forceRefresh = maxAge === 'always'
       const payload = {
         ticker: selected.symbol,
-        user_id: user.id,
         max_age_days: forceRefresh ? null : Number(maxAge),
         force_refresh: forceRefresh,
       }
-      await requestAnalyse(payload)
+      await requestAnalyse(payload, session.access_token)
       navigate(`/analyse/${encodeURIComponent(selected.symbol)}`)
     } catch (err) {
       setAnalyseError(err instanceof Error ? err.message : 'Unbekannter Fehler')
@@ -254,6 +279,16 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-8">
+      {missingApiKeys && (
+        <div className="rounded-sm border border-memo-line bg-white p-4 text-sm text-memo-ink">
+          Bitte hinterlege deinen FMP- und Claude-API-Key unter{' '}
+          <Link to="/konto" className="underline hover:text-memo-muted">
+            Konto
+          </Link>
+          , um Suche und Analyse zu nutzen.
+        </div>
+      )}
+
       {downloadError && (
         <div className="rounded-xl border border-ampel-red/40 bg-ampel-red/10 p-3 text-sm text-ampel-red">
           {downloadError}
