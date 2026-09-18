@@ -27,7 +27,7 @@ interface Metrics {
   hourlyRuns: number[]
 }
 
-type FailedRequest = Pick<RequestLog, 'ticker' | 'requested_at' | 'error_message'>
+type FailedRequest = Pick<RequestLog, 'ticker' | 'requested_at' | 'error_message' | 'user_id'>
 type DataGapRequest = Pick<RequestLog, 'ticker' | 'requested_at'>
 type DeviationRequest = Pick<RequestLog, 'ticker' | 'requested_at' | 'deviation_amount'>
 
@@ -40,6 +40,7 @@ export function AdminPage() {
   const [deviationRequests, setDeviationRequests] = useState<DeviationRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
 
   useEffect(() => {
     load()
@@ -97,7 +98,7 @@ export function AdminPage() {
         supabase.from('request_log').select('duration_ms').not('duration_ms', 'is', null).limit(5000),
         supabase
           .from('request_log')
-          .select('ticker, requested_at, error_message')
+          .select('ticker, requested_at, error_message, user_id')
           .eq('status', 'error')
           .order('requested_at', { ascending: false })
           .limit(20),
@@ -205,6 +206,23 @@ export function AdminPage() {
       )
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function copyFailedRequest(r: FailedRequest, idx: number) {
+    const text = [
+      `Ticker: ${r.ticker}`,
+      `Zeitpunkt: ${new Date(r.requested_at).toLocaleString('de-DE')}`,
+      `Nutzer: ${r.user_id ? r.user_id.slice(0, 8) : 'Anonym'}`,
+      `Fehlermeldung: ${r.error_message ?? '–'}`,
+    ].join('\n')
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedIdx(idx)
+      setTimeout(() => setCopiedIdx((v) => (v === idx ? null : v)), 1500)
+    } catch {
+      // Clipboard-API kann in unsicheren Kontexten/älteren Browsern fehlen -
+      // dann bleibt der Button ohne Feedback, kein harter Fehler noetig.
     }
   }
 
@@ -329,7 +347,9 @@ export function AdminPage() {
                 <tr className="border-b border-memo-line2 text-left text-xs uppercase tracking-wide text-memo-muted">
                   <th className="py-2 pr-4 font-medium">Ticker</th>
                   <th className="py-2 pr-4 font-medium">Zeitpunkt</th>
-                  <th className="py-2 font-medium">Fehlermeldung</th>
+                  <th className="py-2 pr-4 font-medium">Nutzer</th>
+                  <th className="py-2 pr-4 font-medium">Fehlermeldung</th>
+                  <th className="py-2 font-medium"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-memo-line2">
@@ -339,8 +359,19 @@ export function AdminPage() {
                     <td className="whitespace-nowrap py-2.5 pr-4 align-top text-memo-muted">
                       {new Date(r.requested_at).toLocaleString('de-DE')}
                     </td>
-                    <td className="py-2.5 align-top text-memo-minusText">
+                    <td className="whitespace-nowrap py-2.5 pr-4 align-top text-memo-muted">
+                      {r.user_id ? r.user_id.slice(0, 8) : 'Anonym'}
+                    </td>
+                    <td className="py-2.5 pr-4 align-top text-memo-minusText">
                       {r.error_message ?? '–'}
+                    </td>
+                    <td className="whitespace-nowrap py-2.5 align-top">
+                      <button
+                        onClick={() => copyFailedRequest(r, idx)}
+                        className="text-xs text-memo-muted hover:text-memo-ink"
+                      >
+                        {copiedIdx === idx ? 'Kopiert!' : 'Kopieren'}
+                      </button>
                     </td>
                   </tr>
                 ))}
