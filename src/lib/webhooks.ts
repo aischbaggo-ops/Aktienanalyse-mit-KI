@@ -2,6 +2,7 @@ const ANALYSE_WEBHOOK_URL = import.meta.env.VITE_ANALYSE_WEBHOOK_URL
 const SYMBOL_SEARCH_WEBHOOK_URL = import.meta.env.VITE_SYMBOL_SEARCH_WEBHOOK_URL
 const DELETE_ACCOUNT_WEBHOOK_URL = import.meta.env.VITE_DELETE_ACCOUNT_WEBHOOK_URL
 const SAVE_API_KEYS_WEBHOOK_URL = import.meta.env.VITE_SAVE_API_KEYS_WEBHOOK_URL
+const ADMIN_CHAT_WEBHOOK_URL = import.meta.env.VITE_ADMIN_CHAT_WEBHOOK_URL
 
 export interface SymbolSearchResult {
   symbol: string
@@ -114,4 +115,50 @@ export async function saveApiKeys(payload: SaveApiKeysPayload, accessToken: stri
   if (!res.ok || data.error) {
     throw new Error(data.error ?? `Speichern fehlgeschlagen (${res.status})`)
   }
+}
+
+// Ein Claude-Content-Block, so wie die Anthropic Messages API ihn liefert
+// (text, server_tool_use, web_search_tool_result, ...) - wird bei einem
+// Assistant-Turn unveraendert weitergereicht, nicht selbst geparst.
+export interface AdminChatContentBlock {
+  type: string
+  text?: string
+  [key: string]: unknown
+}
+
+// content ist entweder ein einfacher String (User-Turn) oder das rohe
+// Block-Array einer frueheren Assistant-Antwort - siehe admin-chat/index.ts:
+// bei Web-Search-Zitaten verlangt Anthropic, dieses Array bei einem
+// Folge-Turn UNVERAENDERT zurueckzuschicken (inkl. encrypted_content),
+// sonst 400-Fehler beim naechsten Aufruf.
+export interface AdminChatMessage {
+  role: 'user' | 'assistant'
+  content: string | AdminChatContentBlock[]
+}
+
+export interface AdminChatResponse {
+  content: AdminChatContentBlock[]
+  tokens_input: number
+  tokens_output: number
+  web_search_count: number
+  cost_usd: number
+}
+
+export async function sendAdminChatMessage(
+  messages: AdminChatMessage[],
+  accessToken: string
+): Promise<AdminChatResponse> {
+  const res = await fetch(ADMIN_CHAT_WEBHOOK_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ messages }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || data.error) {
+    throw new Error(data.error ?? `Chat-Anfrage fehlgeschlagen (${res.status})`)
+  }
+  return data
 }

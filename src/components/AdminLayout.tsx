@@ -25,6 +25,14 @@ export function AdminLayout() {
           >
             Admin
           </NavLink>
+          <NavLink
+            to="/admin/chat"
+            className={({ isActive }) =>
+              isActive ? 'border-b-2 border-memo-ink pb-1 text-memo-ink' : 'text-memo-muted hover:text-memo-ink'
+            }
+          >
+            Chat
+          </NavLink>
           <button onClick={() => signOut()} className="text-xs text-memo-muted hover:text-memo-ink">
             Abmelden
           </button>

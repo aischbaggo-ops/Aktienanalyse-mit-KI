@@ -8,6 +8,7 @@ import { LoginPage } from './pages/LoginPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { AnalysePage } from './pages/AnalysePage'
 import { AdminPage } from './pages/AdminPage'
+import { AdminChatPage } from './pages/AdminChatPage'
 import { KontoPage } from './pages/KontoPage'
 
 export default function App() {
@@ -26,6 +27,7 @@ export default function App() {
             <Route element={<AdminRoute />}>
               <Route element={<AdminLayout />}>
                 <Route path="/admin/aktivitaet" element={<AdminPage />} />
+                <Route path="/admin/chat" element={<AdminChatPage />} />
               </Route>
             </Route>
           </Route>
