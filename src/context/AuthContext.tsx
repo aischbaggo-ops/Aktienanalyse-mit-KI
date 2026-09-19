@@ -7,6 +7,7 @@ interface AuthContextValue {
   user: User | null
   loading: boolean
   isAdmin: boolean
+  adminLoading: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signUp: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
@@ -18,6 +19,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
+  // Merkt sich, fuer welchen Nutzer das Profil (is_admin) schon geladen wurde.
+  // Daraus wird adminLoading abgeleitet - so gibt es keinen Render, in dem
+  // eine Session existiert, is_admin aber noch als "false" fehlgedeutet wird.
+  const [adminCheckedFor, setAdminCheckedFor] = useState<string | null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -37,21 +42,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!session?.user) {
       setIsAdmin(false)
+      setAdminCheckedFor(null)
       return
     }
+    const userId = session.user.id
     let cancelled = false
     supabase
       .from('profiles')
       .select('is_admin')
-      .eq('id', session.user.id)
+      .eq('id', userId)
       .maybeSingle()
       .then(({ data }) => {
-        if (!cancelled) setIsAdmin(Boolean(data?.is_admin))
+        if (cancelled) return
+        setIsAdmin(Boolean(data?.is_admin))
+        setAdminCheckedFor(userId)
       })
     return () => {
       cancelled = true
     }
-  }, [session?.user])
+  }, [session?.user?.id])
+
+  const adminLoading = !!session?.user && adminCheckedFor !== session.user.id
 
   async function signIn(email: string, password: string) {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -74,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: session?.user ?? null,
         loading,
         isAdmin,
+        adminLoading,
         signIn,
         signUp,
         signOut,

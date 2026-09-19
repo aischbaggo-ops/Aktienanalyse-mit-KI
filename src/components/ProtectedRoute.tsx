@@ -20,9 +20,9 @@ export function ProtectedRoute() {
 }
 
 export function AdminRoute() {
-  const { isAdmin, loading } = useAuth()
+  const { isAdmin, loading, adminLoading } = useAuth()
 
-  if (loading) {
+  if (loading || adminLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-memo-paper text-memo-muted">
         Lade...
