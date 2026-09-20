@@ -52,6 +52,9 @@ export interface AnalyseRequestPayload {
   ticker: string
   max_age_days: number | null
   force_refresh: boolean
+  // Nur Admin + force_refresh: Freitext aus dem Admin-Chat, fliesst einmalig
+  // in den Prompt dieses Laufs ein (wird nicht gespeichert).
+  admin_chat_context?: string
 }
 
 export interface AnalyseResponse {
