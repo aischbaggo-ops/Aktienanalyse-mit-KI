@@ -17,8 +17,8 @@ const initialMarket: MarketParams = {
   contractSize: 100,
 }
 
-const initialLegs: Leg[] =
-  TEMPLATES.find((t) => t.id === 'bull-call-spread')!.build(INITIAL_SPOT)
+const INITIAL_TEMPLATE = TEMPLATES.find((t) => t.id === 'bull-call-spread')!
+const initialLegs: Leg[] = INITIAL_TEMPLATE.build(INITIAL_SPOT)
 
 export default function OptionenPage() {
   const { loading, unlocked } = useFeatureAccess('optionen')
@@ -89,6 +89,7 @@ export default function OptionenPage() {
         {/* Links: Strategie */}
         <section className="rounded-xl border border-slate-200 bg-white p-4">
           <StrategyPanel
+            initialTemplateName={INITIAL_TEMPLATE.name}
             legs={legs}
             market={market}
             onLegsChange={setLegs}
