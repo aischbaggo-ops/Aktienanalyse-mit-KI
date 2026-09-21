@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -6,6 +6,9 @@ import { requestAnalyse, SymbolSearchResult } from '../lib/webhooks'
 import { SymbolSearch } from '../components/SymbolSearch'
 import { FeatureTile } from '../components/FeatureTile'
 import { useFeatureAccess } from '../hooks/useFeatureAccess'
+import { useBatchAnalysis } from '../hooks/useBatchAnalysis'
+import { BatchSelectionPanel } from '../components/BatchSelectionPanel'
+import { BatchStatusPanel } from '../components/BatchStatusPanel'
 import { generateAnalysisPdf } from '../utils/pdfExport'
 import type { StockAnalysis, WatchlistWithAnalysis } from '../types/database'
 
@@ -17,17 +20,6 @@ const MAX_AGE_OPTIONS: { value: MaxAge; label: string }[] = [
   { value: '30', label: '30 Tage' },
   { value: 'always', label: 'Immer neu laden' },
 ]
-
-type BatchPhase = 'idle' | 'confirming' | 'running' | 'done'
-interface BatchResult {
-  ticker: string
-  success: boolean
-  error?: string
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
 
 export function DashboardPage() {
   const { user, session } = useAuth()
@@ -51,13 +43,10 @@ export function DashboardPage() {
 
   const [missingApiKeys, setMissingApiKeys] = useState(false)
 
-  const [batchPhase, setBatchPhase] = useState<BatchPhase>('idle')
-  const [batchTickers, setBatchTickers] = useState<string[]>([])
-  const [batchIndex, setBatchIndex] = useState(0)
-  const [batchResults, setBatchResults] = useState<BatchResult[]>([])
-  const [batchCostEstimate, setBatchCostEstimate] = useState<number | null>(null)
-  const [batchEstimating, setBatchEstimating] = useState(false)
-  const batchCancelRef = useRef(false)
+  const batch = useBatchAnalysis(session?.access_token, () => {
+    loadWatchlist()
+    loadRecent()
+  })
 
   useEffect(() => {
     loadRecent()
@@ -110,8 +99,15 @@ export function DashboardPage() {
     setWatchlistLoading(false)
   }
 
+  // Watchlist-Batch erzwingt weiterhin frische Laeufe (bisheriges Verhalten):
+  // wer bewusst Watchlist-Werte auswaehlt, will aktuelle Ergebnisse. Der
+  // Index-/Freitext-Batch nutzt dagegen den 7-Tage-Cache.
+  async function startWatchlistBatch() {
+    await batch.prepare([...selectedTickers], { forceRefresh: true })
+  }
+
   function toggleTicker(ticker: string) {
-    if (batchPhase !== 'idle') return
+    if (batch.phase !== 'idle') return
     setSelectedTickers((prev) => {
       const next = new Set(prev)
       if (next.has(ticker)) next.delete(ticker)
@@ -120,124 +116,20 @@ export function DashboardPage() {
     })
   }
 
-  async function openBatchConfirm() {
-    const tickers = [...selectedTickers]
-    if (tickers.length === 0) return
-    setBatchTickers(tickers)
-    setBatchPhase('confirming')
-    setBatchEstimating(true)
-    const { data } = await supabase
-      .from('stock_analyses')
-      .select('cost_usd_claude')
-      .not('cost_usd_claude', 'is', null)
-      .order('updated_at', { ascending: false })
-      .limit(20)
-    const costs = (data ?? [])
-      .map((r) => r.cost_usd_claude as number | null)
-      .filter((c): c is number => typeof c === 'number')
-    setBatchCostEstimate(costs.length > 0 ? costs.reduce((a, b) => a + b, 0) / costs.length : null)
-    setBatchEstimating(false)
-  }
-
-  function cancelBatchConfirm() {
-    setBatchPhase('idle')
-    setBatchTickers([])
-    setBatchCostEstimate(null)
-  }
-
-  // Wartet auf den tatsaechlichen Abschluss einer Analyse (Polling auf
-  // status), statt nur auf die HTTP-Antwort von requestAnalyse() - die
-  // kehrt sofort zurueck, waehrend die eigentliche Analyse per waitUntil()
-  // im Hintergrund weiterlaeuft. Ohne dieses Warten wuerde "sequenziell"
-  // nur die Request-Ausloesung betreffen, nicht die tatsaechliche
-  // FMP/Claude-Arbeit - und genau die soll wegen Rate-Limits nicht
-  // parallel laufen.
-  async function waitForAnalysisDone(ticker: string, timeoutMs = 90_000): Promise<'done' | 'error' | 'timeout'> {
-    const start = Date.now()
-    while (Date.now() - start < timeoutMs) {
-      const { data } = await supabase.from('stock_analyses').select('status').eq('ticker', ticker).maybeSingle()
-      if (data?.status === 'done') return 'done'
-      if (data?.status === 'error') return 'error'
-      await sleep(2500)
-    }
-    return 'timeout'
-  }
-
-  async function startBatch() {
-    if (!user || !session?.access_token) return
-    const accessToken = session.access_token
-    const tickers = batchTickers
-    setBatchPhase('running')
-    setBatchIndex(0)
-    setBatchResults([])
-    batchCancelRef.current = false
-
-    // Batch-Analysen erzwingen immer einen frischen Lauf, unabhaengig vom
-    // Zeitraum-Dropdown - wer bewusst mehrere Ticker auswaehlt und einen
-    // Batch startet, will erkennbar frische Ergebnisse sehen. Ein reiner
-    // Cache-Treffer waere hier kein Testerfolg, sondern verfehlt den Zweck
-    // der Funktion (deckt sich mit der Kostenschaetzung im Bestaetigungs-
-    // dialog, die ohnehin von echten neuen Kosten ausgeht).
-    for (let i = 0; i < tickers.length; i++) {
-      if (batchCancelRef.current) break
-      setBatchIndex(i)
-      const ticker = tickers[i]
-      try {
-        await requestAnalyse(
-          {
-            ticker,
-            max_age_days: null,
-            force_refresh: true,
-          },
-          accessToken,
-        )
-        const outcome = await waitForAnalysisDone(ticker)
-        if (outcome === 'done') {
-          setBatchResults((prev) => [...prev, { ticker, success: true }])
-        } else if (outcome === 'error') {
-          setBatchResults((prev) => [...prev, { ticker, success: false, error: 'Analyse fehlgeschlagen' }])
-        } else {
-          setBatchResults((prev) => [...prev, { ticker, success: false, error: 'Zeitüberschreitung beim Warten auf Ergebnis' }])
-        }
-      } catch (err) {
-        setBatchResults((prev) => [
-          ...prev,
-          { ticker, success: false, error: err instanceof Error ? err.message : 'Unbekannter Fehler' },
-        ])
-      }
-    }
-
-    setBatchPhase('done')
-    setSelectedTickers(new Set())
-    loadWatchlist()
-    loadRecent()
-  }
-
-  function cancelRunningBatch() {
-    batchCancelRef.current = true
-  }
-
   // Verhindert versehentliches Verlassen der Seite waehrend ein Batch
   // laeuft (Klick auf eine Kachel wuerde sonst kommentarlos mitten in der
   // Warteschlange wegnavigieren). Bei Bestaetigung wird die Warteschlange
   // ueber denselben Mechanismus wie der "Abbrechen"-Button gestoppt -
   // laufende Einzelanalyse laeuft zu Ende, keine weiteren werden gestartet.
   function navigateToAnalyse(ticker: string) {
-    if (batchPhase === 'running') {
+    if (batch.phase === 'running') {
       const proceed = window.confirm(
-        `Ein Batch-Lauf ist noch aktiv (${batchIndex + 1} von ${batchTickers.length}). Seite trotzdem verlassen? Die restliche Warteschlange wird dann abgebrochen.`
+        `Ein Batch-Lauf ist noch aktiv (${batch.results.length} von ${batch.tickers.length}). Seite trotzdem verlassen? Die restliche Warteschlange wird dann abgebrochen.`
       )
       if (!proceed) return
-      batchCancelRef.current = true
+      batch.cancel()
     }
     navigate(`/analyse/${encodeURIComponent(ticker)}`)
-  }
-
-  function closeBatchSummary() {
-    setBatchPhase('idle')
-    setBatchTickers([])
-    setBatchResults([])
-    setBatchCostEstimate(null)
   }
 
   async function handleDownloadPdf(ticker: string) {
@@ -279,6 +171,8 @@ export function DashboardPage() {
       setAnalysing(false)
     }
   }
+
+  const watchlistTickerSet = new Set(watchlist.map((w) => w.ticker))
 
   return (
     <div className="space-y-8">
@@ -330,6 +224,20 @@ export function DashboardPage() {
         {analyseError && <p className="mt-2 text-sm text-ampel-red">{analyseError}</p>}
       </section>
 
+      <BatchSelectionPanel
+        disabled={batch.phase !== 'idle'}
+        onStart={(list) => batch.prepare(list, { forceRefresh: false })}
+      />
+      {!batch.forceRefresh && (
+        <BatchStatusPanel
+          batch={batch}
+          userId={user?.id}
+          watchlistTickers={watchlistTickerSet}
+          onWatchlistChanged={loadWatchlist}
+          onOpenTicker={navigateToAnalyse}
+        />
+      )}
+
       <section>
         <h2 className="mb-3 text-base font-semibold text-navy-950">Bausteine</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -373,11 +281,11 @@ export function DashboardPage() {
       <section>
         <div className="mb-3 flex flex-wrap items-center gap-3">
           <h2 className="text-base font-semibold text-navy-950">Meine Watchlist</h2>
-          {selectedTickers.size > 0 && batchPhase === 'idle' && (
+          {selectedTickers.size > 0 && batch.phase === 'idle' && (
             <>
               <span className="text-xs text-memo-muted">{selectedTickers.size} ausgewählt</span>
               <button
-                onClick={openBatchConfirm}
+                onClick={startWatchlistBatch}
                 className="rounded-md border border-memo-line px-3 py-1 text-xs font-medium text-memo-ink transition-colors hover:border-memo-ink"
               >
                 Batch-Analyse starten
@@ -386,78 +294,15 @@ export function DashboardPage() {
           )}
         </div>
 
-        {batchPhase === 'confirming' && (
-          <div className="mb-4 rounded-lg border border-memo-line bg-white p-4">
-            <p className="text-sm text-memo-ink">
-              {batchTickers.length} Analysen werden gestartet
-              {batchEstimating
-                ? ' — Kostenschätzung wird geladen...'
-                : batchCostEstimate != null
-                  ? ` — geschätzte Kosten ca. $${(batchCostEstimate * batchTickers.length).toFixed(2)} (Ø $${batchCostEstimate.toFixed(4)}/Analyse aus den letzten 20 Läufen).`
-                  : ' — keine Kostenschätzung verfügbar (noch keine historischen Daten).'}{' '}
-              Das kostet echtes Geld. Fortfahren?
-            </p>
-            <div className="mt-3 flex gap-2">
-              <button
-                onClick={startBatch}
-                disabled={batchEstimating}
-                className="rounded-md bg-memo-ink px-4 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                Ja, starten
-              </button>
-              <button
-                onClick={cancelBatchConfirm}
-                className="rounded-md border border-memo-line px-4 py-1.5 text-xs font-medium text-memo-muted transition-colors hover:border-memo-ink hover:text-memo-ink"
-              >
-                Abbrechen
-              </button>
-            </div>
-          </div>
-        )}
-
-        {batchPhase === 'running' && (
-          <div className="mb-4 rounded-lg border border-memo-line bg-white p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm text-memo-ink">
-                {batchIndex + 1} von {batchTickers.length}:{' '}
-                <span className="font-analyst text-memo-ink">{batchTickers[batchIndex]}</span> läuft...
-              </p>
-              <button onClick={cancelRunningBatch} className="whitespace-nowrap text-xs text-memo-muted hover:text-memo-ink">
-                Abbrechen
-              </button>
-            </div>
-            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-memo-paper">
-              <div
-                className="h-full bg-memo-ink transition-all duration-500"
-                style={{ width: `${(batchIndex / batchTickers.length) * 100}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        {batchPhase === 'done' && (
-          <div className="mb-4 rounded-lg border border-memo-line bg-white p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm text-memo-ink">
-                Batch abgeschlossen: {batchResults.filter((r) => r.success).length} erfolgreich
-                {batchResults.some((r) => !r.success) &&
-                  `, ${batchResults.filter((r) => !r.success).length} fehlgeschlagen`}
-              </p>
-              <button onClick={closeBatchSummary} className="whitespace-nowrap text-xs text-memo-muted hover:text-memo-ink">
-                Schließen
-              </button>
-            </div>
-            {batchResults.some((r) => !r.success) && (
-              <ul className="mt-2 space-y-1 text-xs text-memo-minusText">
-                {batchResults
-                  .filter((r) => !r.success)
-                  .map((r) => (
-                    <li key={r.ticker}>
-                      {r.ticker}: {r.error}
-                    </li>
-                  ))}
-              </ul>
-            )}
+        {batch.forceRefresh && (
+          <div className="mb-4">
+            <BatchStatusPanel
+              batch={batch}
+              userId={user?.id}
+              watchlistTickers={watchlistTickerSet}
+              onWatchlistChanged={loadWatchlist}
+              onOpenTicker={navigateToAnalyse}
+            />
           </div>
         )}
 
@@ -486,7 +331,7 @@ export function DashboardPage() {
                 downloading={downloadingTicker === w.ticker}
                 checked={selectedTickers.has(w.ticker)}
                 onToggleChecked={() => toggleTicker(w.ticker)}
-                highlighted={batchPhase === 'running' && batchTickers[batchIndex] === w.ticker}
+                highlighted={batch.phase === 'running' && batch.tickers[batch.index] === w.ticker}
               />
             ))}
           </div>
