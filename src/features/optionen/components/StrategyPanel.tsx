@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Leg, MarketParams } from '../types'
 import { TEMPLATES } from '../data/templates'
 
@@ -25,6 +26,11 @@ export default function StrategyPanel({
   onMarketChange,
   onApplyTemplate,
 }: Props) {
+  // Name der zuletzt gewaehlten Vorlage: bleibt stehen, auch wenn das Dropdown
+  // zurueckspringt oder Legs danach manuell geaendert werden (zeigt nur den
+  // Ausgangspunkt).
+  const [lastTemplateName, setLastTemplateName] = useState<string | null>(null)
+
   const updateLeg = (id: string, patch: Partial<Leg>) =>
     onLegsChange(legs.map((l) => (l.id === id ? { ...l, ...patch } : l)))
 
@@ -59,7 +65,12 @@ export default function StrategyPanel({
           className={inputCls}
           defaultValue=""
           onChange={(e) => {
-            if (e.target.value) onApplyTemplate(e.target.value)
+            const id = e.target.value
+            if (id) {
+              const tpl = TEMPLATES.find((t) => t.id === id)
+              if (tpl) setLastTemplateName(tpl.name)
+              onApplyTemplate(id)
+            }
             e.target.value = ''
           }}
         >
@@ -72,6 +83,11 @@ export default function StrategyPanel({
             </option>
           ))}
         </select>
+        {lastTemplateName && (
+          <p className="mt-1 text-xs text-slate-500" data-testid="last-template">
+            Vorlage: <span className="font-semibold text-slate-700">{lastTemplateName}</span>
+          </p>
+        )}
       </div>
 
       {/* Marktparameter */}
