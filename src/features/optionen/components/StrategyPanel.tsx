@@ -3,6 +3,8 @@ import type { Leg, MarketParams } from '../types'
 import { TEMPLATES } from '../data/templates'
 
 interface Props {
+  /** Name der Vorlage, mit der die Startlegs erzeugt wurden (Label vorbelegt). */
+  initialTemplateName?: string
   legs: Leg[]
   market: MarketParams
   onLegsChange: (legs: Leg[]) => void
@@ -20,6 +22,7 @@ const inputCls =
   'w-full rounded border border-slate-300 px-2 py-1 text-sm tabular-nums focus:border-sky-500 focus:outline-none'
 
 export default function StrategyPanel({
+  initialTemplateName,
   legs,
   market,
   onLegsChange,
@@ -29,7 +32,7 @@ export default function StrategyPanel({
   // Name der zuletzt gewaehlten Vorlage: bleibt stehen, auch wenn das Dropdown
   // zurueckspringt oder Legs danach manuell geaendert werden (zeigt nur den
   // Ausgangspunkt).
-  const [lastTemplateName, setLastTemplateName] = useState<string | null>(null)
+  const [lastTemplateName, setLastTemplateName] = useState<string | null>(initialTemplateName ?? null)
 
   const updateLeg = (id: string, patch: Partial<Leg>) =>
     onLegsChange(legs.map((l) => (l.id === id ? { ...l, ...patch } : l)))
