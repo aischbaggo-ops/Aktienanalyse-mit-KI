@@ -30,6 +30,9 @@ export default {
           500: '#dc6b2f', // Culture Orange (Markenfarbe)
           600: '#ae501e',
         },
+        // Optionen-Modul (MetricsPanel: text-profit / text-loss)
+        profit: '#16a34a',
+        loss: '#dc2626',
         ampel: {
           // Funktionale Ampelfarben fuer Kriterien-Bewertung — bewusst NICHT
           // Teil des Marken-Farbschemas, bleiben unveraendert.

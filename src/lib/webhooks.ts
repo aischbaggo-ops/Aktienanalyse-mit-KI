@@ -3,6 +3,28 @@ const SYMBOL_SEARCH_WEBHOOK_URL = import.meta.env.VITE_SYMBOL_SEARCH_WEBHOOK_URL
 const DELETE_ACCOUNT_WEBHOOK_URL = import.meta.env.VITE_DELETE_ACCOUNT_WEBHOOK_URL
 const SAVE_API_KEYS_WEBHOOK_URL = import.meta.env.VITE_SAVE_API_KEYS_WEBHOOK_URL
 const ADMIN_CHAT_WEBHOOK_URL = import.meta.env.VITE_ADMIN_CHAT_WEBHOOK_URL
+const ADMIN_USERS_WEBHOOK_URL = import.meta.env.VITE_ADMIN_USERS_WEBHOOK_URL
+
+export interface AdminUserRow {
+  id: string
+  ref: string
+  email_masked: string
+  created_at: string
+  is_admin: boolean
+  optionen: boolean
+}
+
+export async function fetchAdminUsers(accessToken: string): Promise<AdminUserRow[]> {
+  const res = await fetch(ADMIN_USERS_WEBHOOK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || data.error) {
+    throw new Error(data.error ?? `Nutzerliste konnte nicht geladen werden (${res.status})`)
+  }
+  return data.users ?? []
+}
 
 export interface SymbolSearchResult {
   symbol: string

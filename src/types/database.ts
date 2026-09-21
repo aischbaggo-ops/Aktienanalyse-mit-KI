@@ -254,6 +254,15 @@ export interface SearchLog {
   [key: string]: unknown
 }
 
+export interface FeatureAccess {
+  user_id: string
+  feature: string
+  unlocked: boolean
+  granted_by: string | null
+  granted_at: string | null
+  [key: string]: unknown
+}
+
 export interface FunctionError {
   id?: string
   function_name: string
@@ -315,6 +324,12 @@ export interface Database {
         Row: SearchLog
         Insert: Partial<SearchLog>
         Update: Partial<SearchLog>
+        Relationships: []
+      }
+      feature_access: {
+        Row: FeatureAccess
+        Insert: Partial<FeatureAccess>
+        Update: Partial<FeatureAccess>
         Relationships: []
       }
       function_errors: {

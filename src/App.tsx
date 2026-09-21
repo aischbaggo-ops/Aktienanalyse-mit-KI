@@ -10,6 +10,7 @@ import { AnalysePage } from './pages/AnalysePage'
 import { AdminPage } from './pages/AdminPage'
 import { AdminChatPage } from './pages/AdminChatPage'
 import { KontoPage } from './pages/KontoPage'
+import OptionenPage from './features/optionen/OptionenPage'
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/analyse/:ticker" element={<AnalysePage />} />
               <Route path="/konto" element={<KontoPage />} />
+              <Route path="/optionen" element={<OptionenPage />} />
             </Route>
             <Route element={<AdminRoute />}>
               <Route element={<AdminLayout />}>

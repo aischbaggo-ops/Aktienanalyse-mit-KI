@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { RequestLog, FunctionError } from '../types/database'
 import { SeriesBarChart } from '../components/memo/Charts'
+import { AdminFeatureAccess } from '../components/AdminFeatureAccess'
 
 // Manuell eingetragen, NICHT von FMP abgefragt (es gibt keinen Endpoint,
 // der das eigene Tageskontingent zurueckliefert) - bei Plan-Wechsel
@@ -493,6 +494,8 @@ export function AdminPage() {
           )}
         </div>
       )}
+
+      <AdminFeatureAccess />
 
       <div>
         <p className="mb-3 text-xs font-medium uppercase tracking-wide text-memo-muted">Meistgesuchte Ticker</p>

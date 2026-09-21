@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { requestAnalyse, SymbolSearchResult } from '../lib/webhooks'
 import { SymbolSearch } from '../components/SymbolSearch'
+import { FeatureTile } from '../components/FeatureTile'
+import { useFeatureAccess } from '../hooks/useFeatureAccess'
 import { generateAnalysisPdf } from '../utils/pdfExport'
 import type { StockAnalysis, WatchlistWithAnalysis } from '../types/database'
 
@@ -29,6 +31,7 @@ function sleep(ms: number) {
 
 export function DashboardPage() {
   const { user, session } = useAuth()
+  const optionenAccess = useFeatureAccess('optionen')
   const navigate = useNavigate()
 
   const [selected, setSelected] = useState<SymbolSearchResult | null>(null)
@@ -325,6 +328,19 @@ export function DashboardPage() {
           </p>
         )}
         {analyseError && <p className="mt-2 text-sm text-ampel-red">{analyseError}</p>}
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-base font-semibold text-navy-950">Bausteine</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <FeatureTile
+            title="Optionen"
+            description="Strategien planen, berechnen und durchspielen."
+            to="/optionen"
+            loading={optionenAccess.loading}
+            unlocked={optionenAccess.unlocked}
+          />
+        </div>
       </section>
 
       <section>
