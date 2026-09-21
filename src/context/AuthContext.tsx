@@ -11,7 +11,6 @@ interface AuthContextValue {
   username: string | null
   refreshProfile: () => Promise<void>
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
-  signUp: (email: string, password: string, username: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
 }
 
@@ -107,26 +106,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null }
   }
 
-  async function signUp(email: string, password: string, username: string) {
-    const name = username.trim()
-    // Vorab-Pruefung fuer eine klare Meldung; die eigentliche Erzwingung
-    // (Pflicht, Format, Eindeutigkeit) macht der DB-Trigger handle_new_user.
-    const { data: available, error: checkError } = await supabase.rpc('username_available', { p_username: name })
-    if (checkError) return { error: 'Nutzername konnte nicht geprüft werden. Bitte später erneut versuchen.' }
-    if (!available) return { error: 'Nutzername bereits vergeben.' }
-
-    const { error } = await supabase.auth.signUp({ email, password, options: { data: { username: name } } })
-    if (error) {
-      // Der Trigger bricht bei Konflikt (z. B. zeitgleiche Registrierung) mit
-      // einem generischen "Database error saving new user" ab.
-      if (/database error saving new user/i.test(error.message)) {
-        return { error: 'Registrierung fehlgeschlagen: Nutzername bereits vergeben oder ungültig.' }
-      }
-      return { error: error.message }
-    }
-    return { error: null }
-  }
-
   async function signOut() {
     await supabase.auth.signOut()
   }
@@ -142,7 +121,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         username,
         refreshProfile,
         signIn,
-        signUp,
         signOut,
       }}
     >
