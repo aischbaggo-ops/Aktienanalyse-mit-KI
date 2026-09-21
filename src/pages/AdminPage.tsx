@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import type { RequestLog, FunctionError } from '../types/database'
 import { SeriesBarChart } from '../components/memo/Charts'
 import { AdminFeatureAccess } from '../components/AdminFeatureAccess'
+import { AdminAccessRequests } from '../components/AdminAccessRequests'
 
 // Manuell eingetragen, NICHT von FMP abgefragt (es gibt keinen Endpoint,
 // der das eigene Tageskontingent zurueckliefert) - bei Plan-Wechsel
@@ -494,6 +495,8 @@ export function AdminPage() {
           )}
         </div>
       )}
+
+      <AdminAccessRequests />
 
       <AdminFeatureAccess />
 

@@ -263,6 +263,18 @@ export interface FeatureAccess {
   [key: string]: unknown
 }
 
+export type AccessRequestStatus = 'neu' | 'erledigt' | 'abgelehnt'
+
+export interface AccessRequest {
+  id: string
+  name: string | null
+  contact: string
+  message: string | null
+  status: AccessRequestStatus
+  created_at: string
+  [key: string]: unknown
+}
+
 export interface FunctionError {
   id?: string
   function_name: string
@@ -326,6 +338,12 @@ export interface Database {
         Row: SearchLog
         Insert: Partial<SearchLog>
         Update: Partial<SearchLog>
+        Relationships: []
+      }
+      access_requests: {
+        Row: AccessRequest
+        Insert: Partial<AccessRequest>
+        Update: Partial<AccessRequest>
         Relationships: []
       }
       feature_access: {
