@@ -8,8 +8,10 @@ interface AuthContextValue {
   loading: boolean
   isAdmin: boolean
   adminLoading: boolean
+  username: string | null
+  refreshProfile: () => Promise<void>
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
-  signUp: (email: string, password: string) => Promise<{ error: string | null }>
+  signUp: (email: string, password: string, username: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
 }
 
@@ -19,6 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [username, setUsername] = useState<string | null>(null)
   // Merkt sich, fuer welchen Nutzer das Profil (is_admin) schon geladen wurde.
   // Daraus wird adminLoading abgeleitet - so gibt es keinen Render, in dem
   // eine Session existiert, is_admin aber noch als "false" fehlgedeutet wird.
@@ -42,6 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!session?.user) {
       setIsAdmin(false)
+      setUsername(null)
       setAdminCheckedFor(null)
       return
     }
@@ -49,12 +53,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     supabase
       .from('profiles')
-      .select('is_admin')
+      .select('is_admin, username')
       .eq('id', userId)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
         if (cancelled) return
         setIsAdmin(Boolean(data?.is_admin))
+        // Ladefehler ist nicht "kein Nutzername" - sonst wuerde der
+        // blockierende Dialog faelschlich auch fuer Nutzer mit Namen erscheinen.
+        setUsername(error ? '' : data?.username ?? null)
         setAdminCheckedFor(userId)
       })
     return () => {
@@ -64,14 +71,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const adminLoading = !!session?.user && adminCheckedFor !== session.user.id
 
+  // Heartbeat fuer den Online-Status: sofort beim Login, dann alle 60 s,
+  // solange die App sichtbar offen ist (versteckte Tabs pausieren). Zentral
+  // im AuthProvider statt pro Seite. Fehler sind unkritisch und werden
+  // ignoriert.
+  useEffect(() => {
+    if (!session?.user) return
+    const beat = () => {
+      if (document.visibilityState === 'hidden') return
+      void supabase.rpc('touch_last_seen').then(() => undefined, () => undefined)
+    }
+    beat()
+    const timer = setInterval(beat, 60_000)
+    document.addEventListener('visibilitychange', beat)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', beat)
+    }
+  }, [session?.user?.id])
+
+  async function refreshProfile() {
+    if (!session?.user) return
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('is_admin, username')
+      .eq('id', session.user.id)
+      .maybeSingle()
+    if (error) return
+    setIsAdmin(Boolean(data?.is_admin))
+    setUsername(data?.username ?? null)
+  }
+
   async function signIn(email: string, password: string) {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     return { error: error?.message ?? null }
   }
 
-  async function signUp(email: string, password: string) {
-    const { error } = await supabase.auth.signUp({ email, password })
-    return { error: error?.message ?? null }
+  async function signUp(email: string, password: string, username: string) {
+    const name = username.trim()
+    // Vorab-Pruefung fuer eine klare Meldung; die eigentliche Erzwingung
+    // (Pflicht, Format, Eindeutigkeit) macht der DB-Trigger handle_new_user.
+    const { data: available, error: checkError } = await supabase.rpc('username_available', { p_username: name })
+    if (checkError) return { error: 'Nutzername konnte nicht geprüft werden. Bitte später erneut versuchen.' }
+    if (!available) return { error: 'Nutzername bereits vergeben.' }
+
+    const { error } = await supabase.auth.signUp({ email, password, options: { data: { username: name } } })
+    if (error) {
+      // Der Trigger bricht bei Konflikt (z. B. zeitgleiche Registrierung) mit
+      // einem generischen "Database error saving new user" ab.
+      if (/database error saving new user/i.test(error.message)) {
+        return { error: 'Registrierung fehlgeschlagen: Nutzername bereits vergeben oder ungültig.' }
+      }
+      return { error: error.message }
+    }
+    return { error: null }
   }
 
   async function signOut() {
@@ -86,6 +139,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         isAdmin,
         adminLoading,
+        username,
+        refreshProfile,
         signIn,
         signUp,
         signOut,
