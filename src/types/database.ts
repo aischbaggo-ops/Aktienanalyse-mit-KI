@@ -350,6 +350,7 @@ export interface Database {
     Views: Record<string, never>
     Functions: {
       username_available: { Args: { p_username: string }; Returns: boolean }
+      set_my_username: { Args: { p_username: string }; Returns: undefined }
       touch_last_seen: { Args: Record<string, never>; Returns: undefined }
     }
     Enums: Record<string, never>
