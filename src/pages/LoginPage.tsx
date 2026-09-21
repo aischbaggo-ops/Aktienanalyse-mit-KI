@@ -1,12 +1,14 @@
 import { FormEvent, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { validateUsername } from '../utils/userActivity'
 
 export function LoginPage() {
   const { session, signIn, signUp } = useAuth()
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [username, setUsername] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -19,13 +21,22 @@ export function LoginPage() {
     e.preventDefault()
     setError(null)
     setInfo(null)
+
+    if (mode === 'signup') {
+      const usernameError = validateUsername(username)
+      if (usernameError) {
+        setError(usernameError)
+        return
+      }
+    }
+
     setSubmitting(true)
 
     if (mode === 'signin') {
       const { error } = await signIn(email, password)
       if (error) setError(error)
     } else {
-      const { error } = await signUp(email, password)
+      const { error } = await signUp(email, password, username)
       if (error) setError(error)
       else setInfo('Konto erstellt. Falls Bestätigung nötig ist, prüfe dein Postfach.')
     }
@@ -62,6 +73,23 @@ export function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {mode === 'signup' && (
+            <div>
+              <label className="mb-1.5 block text-xs uppercase tracking-wide text-memo-muted">Nutzername</label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                maxLength={24}
+                className="w-full rounded-sm border border-memo-line bg-white px-3 py-2.5 text-sm text-memo-ink outline-none focus:border-memo-ink"
+                placeholder="frei wählbar, kein Klarname nötig"
+              />
+              <p className="mt-1 text-xs text-memo-muted">
+                3–24 Zeichen: Buchstaben, Zahlen, _ und -. Muss eindeutig sein.
+              </p>
+            </div>
+          )}
           <div>
             <label className="mb-1.5 block text-xs uppercase tracking-wide text-memo-muted">E-Mail</label>
             <input

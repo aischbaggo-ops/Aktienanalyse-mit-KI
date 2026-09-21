@@ -275,6 +275,8 @@ export interface FunctionError {
 export interface Profile {
   id: string
   is_admin: boolean
+  username: string | null
+  last_seen_at: string | null
   [key: string]: unknown
 }
 
@@ -346,7 +348,10 @@ export interface Database {
       }
     }
     Views: Record<string, never>
-    Functions: Record<string, never>
+    Functions: {
+      username_available: { Args: { p_username: string }; Returns: boolean }
+      touch_last_seen: { Args: Record<string, never>; Returns: undefined }
+    }
     Enums: Record<string, never>
     CompositeTypes: Record<string, never>
   }

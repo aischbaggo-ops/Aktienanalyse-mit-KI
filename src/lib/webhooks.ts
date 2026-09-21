@@ -9,6 +9,8 @@ export interface AdminUserRow {
   id: string
   ref: string
   email_masked: string
+  username: string | null
+  last_seen_at: string | null
   created_at: string
   is_admin: boolean
   optionen: boolean
