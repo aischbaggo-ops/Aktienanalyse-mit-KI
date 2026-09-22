@@ -10,6 +10,7 @@ import { useBatchAnalysis } from '../hooks/useBatchAnalysis'
 import { BatchSelectionPanel } from '../components/BatchSelectionPanel'
 import { IndexSelectionPanel } from '../components/IndexSelectionPanel'
 import { BatchStatusPanel } from '../components/BatchStatusPanel'
+import { AnalysisResultsList, type AnalysisResultRow } from '../components/AnalysisResultsList'
 import { generateAnalysisPdf } from '../utils/pdfExport'
 import type { StockAnalysis, WatchlistWithAnalysis } from '../types/database'
 
@@ -21,6 +22,12 @@ const MAX_AGE_OPTIONS: { value: MaxAge; label: string }[] = [
   { value: '30', label: '30 Tage' },
   { value: 'always', label: 'Immer neu laden' },
 ]
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'wartet',
+  running: 'läuft',
+  error: 'Fehler',
+}
 
 export function DashboardPage() {
   const { user, session } = useAuth()
@@ -83,7 +90,6 @@ export function DashboardPage() {
       .select('*')
       .gt('updated_at', since)
       .order('updated_at', { ascending: false })
-      .limit(5)
     setRecent(data ?? [])
     setRecentLoading(false)
   }
@@ -174,6 +180,21 @@ export function DashboardPage() {
   }
 
   const watchlistTickerSet = new Set(watchlist.map((w) => w.ticker))
+
+  // Bereits nach updated_at absteigend sortiert (siehe loadRecent). Bei
+  // einem Status ungleich "done" (pending/running/error) steht statt des
+  // Datums der Status davor, damit das nicht wie eine fertige Analyse
+  // aussieht.
+  const recentRows: AnalysisResultRow[] = recent.map((a) => ({
+    ticker: a.ticker,
+    name: a.company_name ?? a.ticker,
+    image: a.chart_data?.profileMeta?.image,
+    score: a.score_total,
+    metaLabel:
+      a.status === 'done'
+        ? new Date(a.updated_at).toLocaleString('de-DE')
+        : `${STATUS_LABELS[a.status] ?? a.status} · ${new Date(a.updated_at).toLocaleString('de-DE')}`,
+  }))
 
   return (
     <div className="space-y-8">
@@ -271,23 +292,15 @@ export function DashboardPage() {
         ) : recent.length === 0 ? (
           <p className="text-sm text-memo-muted">Noch keine Analysen in den letzten 24h.</p>
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {recent.map((a) => (
-              <DashboardTile
-                key={a.ticker}
-                ticker={a.ticker}
-                sector={a.sector}
-                name={a.company_name ?? a.ticker}
-                image={a.chart_data?.profileMeta?.image}
-                score={a.score_total}
-                scoreLabel={`Status: ${a.status}`}
-                meta={new Date(a.updated_at).toLocaleString('de-DE')}
-                onClick={() => navigateToAnalyse(a.ticker)}
-                onDownloadPdf={() => handleDownloadPdf(a.ticker)}
-                downloading={downloadingTicker === a.ticker}
-              />
-            ))}
-          </div>
+          <AnalysisResultsList
+            rows={recentRows}
+            watchlistTickers={watchlistTickerSet}
+            userId={user?.id}
+            onWatchlistChanged={loadWatchlist}
+            onOpenTicker={navigateToAnalyse}
+            onDownloadPdf={handleDownloadPdf}
+            downloadingTicker={downloadingTicker}
+          />
         )}
       </section>
 

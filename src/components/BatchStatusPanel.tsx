@@ -1,6 +1,5 @@
-import { useState } from 'react'
-import { supabase } from '../lib/supabase'
 import { formatDurationRange } from '../utils/batchEstimate'
+import { AnalysisResultsList, type AnalysisResultRow } from './AnalysisResultsList'
 import type { useBatchAnalysis } from '../hooks/useBatchAnalysis'
 
 type Batch = ReturnType<typeof useBatchAnalysis>
@@ -129,43 +128,20 @@ function Done({
   onWatchlistChanged: () => void
   onOpenTicker: (ticker: string) => void
 }) {
-  const [picked, setPicked] = useState<Set<string>>(new Set())
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
   const ok = batch.results
     .filter((r) => r.success)
     .sort((a, b) => (b.score ?? -Infinity) - (a.score ?? -Infinity))
   const failed = batch.results.filter((r) => !r.success)
   const skipped = batch.tickers.length - batch.results.length
 
-  function toggle(ticker: string) {
-    setPicked((prev) => {
-      const next = new Set(prev)
-      if (next.has(ticker)) next.delete(ticker)
-      else next.add(ticker)
-      return next
-    })
-  }
-
-  async function addToWatchlist() {
-    if (!userId || picked.size === 0) return
-    setBusy(true)
-    setError(null)
-    const now = new Date().toISOString()
-    const rows = ok
-      .filter((r) => picked.has(r.ticker) && !watchlistTickers.has(r.ticker))
-      .map((r) => ({ user_id: userId, ticker: r.ticker, analysis_id: r.analysisId ?? null, added_at: now }))
-    const { error: err } = rows.length > 0 ? await supabase.from('watchlists').insert(rows) : { error: null }
-    setBusy(false)
-    if (err) {
-      console.error('Watchlist insert (Batch) fehlgeschlagen:', err)
-      setError(err.message)
-      return
-    }
-    setPicked(new Set())
-    onWatchlistChanged()
-  }
+  const rows: AnalysisResultRow[] = ok.map((r) => ({
+    ticker: r.ticker,
+    name: r.name,
+    image: r.image,
+    score: r.score ?? null,
+    analysisId: r.analysisId,
+    cached: r.cached,
+  }))
 
   return (
     <>
@@ -182,44 +158,14 @@ function Done({
 
       {ok.length > 0 && (
         <div className="mt-3">
-          <div className="mb-1 flex items-center justify-between gap-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-memo-muted">Ergebnisse nach Score</p>
-            <button
-              onClick={addToWatchlist}
-              disabled={busy || picked.size === 0}
-              className="rounded-md border border-memo-line px-3 py-1 text-xs font-medium text-memo-ink transition-colors hover:border-memo-ink disabled:opacity-50"
-            >
-              {picked.size} zur Watchlist hinzufügen
-            </button>
-          </div>
-          <ul className="max-h-80 divide-y divide-memo-line2 overflow-y-auto rounded-lg border border-memo-line">
-            {ok.map((r) => {
-              const onList = watchlistTickers.has(r.ticker)
-              return (
-                <li key={r.ticker} className="flex items-center gap-3 px-3 py-1.5 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={onList || picked.has(r.ticker)}
-                    disabled={onList}
-                    onChange={() => toggle(r.ticker)}
-                    aria-label={`${r.ticker} zur Watchlist`}
-                    className="h-4 w-4 accent-navy-700"
-                  />
-                  <button
-                    onClick={() => onOpenTicker(r.ticker)}
-                    className="flex min-w-0 flex-1 items-baseline gap-2 text-left hover:underline"
-                  >
-                    <span className="font-analyst text-memo-ink">{r.ticker}</span>
-                    <span className="truncate text-xs text-memo-muted">{r.name ?? ''}</span>
-                  </button>
-                  {r.cached && <span className="text-[11px] text-memo-muted">Cache</span>}
-                  {onList && <span className="text-[11px] text-memo-muted">auf Watchlist</span>}
-                  <span className="w-8 text-right font-semibold text-navy-950">{r.score ?? '–'}</span>
-                </li>
-              )
-            })}
-          </ul>
-          {error && <p className="mt-2 text-xs text-ampel-red">Watchlist-Aktion fehlgeschlagen: {error}</p>}
+          <AnalysisResultsList
+            rows={rows}
+            watchlistTickers={watchlistTickers}
+            userId={userId}
+            onWatchlistChanged={onWatchlistChanged}
+            onOpenTicker={onOpenTicker}
+            heading="Ergebnisse nach Score"
+          />
         </div>
       )}
 
