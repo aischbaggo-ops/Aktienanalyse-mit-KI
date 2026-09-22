@@ -8,6 +8,7 @@ import { FeatureTile } from '../components/FeatureTile'
 import { useFeatureAccess } from '../hooks/useFeatureAccess'
 import { useBatchAnalysis } from '../hooks/useBatchAnalysis'
 import { BatchSelectionPanel } from '../components/BatchSelectionPanel'
+import { IndexSelectionPanel } from '../components/IndexSelectionPanel'
 import { BatchStatusPanel } from '../components/BatchStatusPanel'
 import { generateAnalysisPdf } from '../utils/pdfExport'
 import type { StockAnalysis, WatchlistWithAnalysis } from '../types/database'
@@ -224,19 +225,31 @@ export function DashboardPage() {
         {analyseError && <p className="mt-2 text-sm text-ampel-red">{analyseError}</p>}
       </section>
 
-      <BatchSelectionPanel
-        disabled={batch.phase !== 'idle'}
-        onStart={(list) => batch.prepare(list, { forceRefresh: false })}
-      />
-      {!batch.forceRefresh && (
-        <BatchStatusPanel
-          batch={batch}
-          userId={user?.id}
-          watchlistTickers={watchlistTickerSet}
-          onWatchlistChanged={loadWatchlist}
-          onOpenTicker={navigateToAnalyse}
-        />
-      )}
+      <section>
+        <h2 className="mb-3 text-base font-semibold text-navy-950">Mehrere Aktien auf einmal analysieren</h2>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <IndexSelectionPanel
+            disabled={batch.phase !== 'idle'}
+            accessToken={session?.access_token}
+            onStart={(list) => batch.prepare(list, { forceRefresh: false })}
+          />
+          <BatchSelectionPanel
+            disabled={batch.phase !== 'idle'}
+            onStart={(list) => batch.prepare(list, { forceRefresh: false })}
+          />
+        </div>
+        {!batch.forceRefresh && (
+          <div className="mt-4">
+            <BatchStatusPanel
+              batch={batch}
+              userId={user?.id}
+              watchlistTickers={watchlistTickerSet}
+              onWatchlistChanged={loadWatchlist}
+              onOpenTicker={navigateToAnalyse}
+            />
+          </div>
+        )}
+      </section>
 
       <section>
         <h2 className="mb-3 text-base font-semibold text-navy-950">Bausteine</h2>

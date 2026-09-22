@@ -4,6 +4,7 @@ const DELETE_ACCOUNT_WEBHOOK_URL = import.meta.env.VITE_DELETE_ACCOUNT_WEBHOOK_U
 const SAVE_API_KEYS_WEBHOOK_URL = import.meta.env.VITE_SAVE_API_KEYS_WEBHOOK_URL
 const ADMIN_CHAT_WEBHOOK_URL = import.meta.env.VITE_ADMIN_CHAT_WEBHOOK_URL
 const ADMIN_USERS_WEBHOOK_URL = import.meta.env.VITE_ADMIN_USERS_WEBHOOK_URL
+const INDEX_CONSTITUENTS_WEBHOOK_URL = import.meta.env.VITE_INDEX_CONSTITUENTS_WEBHOOK_URL
 
 export interface AdminUserRow {
   id: string
@@ -67,6 +68,49 @@ export async function searchSymbols(query: string, accessToken: string): Promise
       isPrimary: item.isPrimary === true,
     })),
     rateLimited: data.rate_limited === true,
+  }
+}
+
+export interface IndexConstituent {
+  rank: number
+  ticker: string
+  name: string
+}
+
+export interface IndexConstituentsResponse {
+  indexId: string
+  label: string
+  source: 'fmp' | 'fallback' | 'none'
+  constituents: IndexConstituent[]
+  note?: string
+}
+
+// limit = "Top N" (die ersten N in der von der Quelle gelieferten
+// Reihenfolge, siehe index-constituents-Function). null/undefined laedt
+// alle Mitglieder.
+export async function getIndexConstituents(
+  indexId: string,
+  limit: number | null,
+  accessToken: string
+): Promise<IndexConstituentsResponse> {
+  const res = await fetch(INDEX_CONSTITUENTS_WEBHOOK_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ index_id: indexId, limit }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || data.error) {
+    throw new Error(data.error ?? `Index-Mitglieder konnten nicht geladen werden (${res.status})`)
+  }
+  return {
+    indexId: data.index_id,
+    label: data.label,
+    source: data.source,
+    constituents: data.constituents ?? [],
+    note: data.note,
   }
 }
 
