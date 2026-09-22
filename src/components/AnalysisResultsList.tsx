@@ -29,6 +29,8 @@ export function AnalysisResultsList({
   onWatchlistChanged,
   onOpenTicker,
   heading,
+  onDownloadPdf,
+  downloadingTicker,
 }: {
   rows: AnalysisResultRow[]
   watchlistTickers: Set<string>
@@ -36,6 +38,11 @@ export function AnalysisResultsList({
   onWatchlistChanged: () => void
   onOpenTicker: (ticker: string) => void
   heading?: string
+  // Optional: Pro-Zeile-PDF-Download (z.B. "Letzte Analysen"). Weggelassen
+  // zeigt eine Zeile keinen Download-Button - der Batch-Ergebnis-Panel
+  // nutzt das bewusst nicht.
+  onDownloadPdf?: (ticker: string) => void
+  downloadingTicker?: string | null
 }) {
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
@@ -124,6 +131,37 @@ export function AnalysisResultsList({
               {r.cached && <span className="whitespace-nowrap text-[11px] text-memo-muted">Cache</span>}
               {onList && <span className="whitespace-nowrap text-[11px] text-memo-muted">auf Watchlist</span>}
               <span className="w-8 flex-shrink-0 text-right font-semibold text-navy-950">{r.score ?? '–'}</span>
+              {onDownloadPdf && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDownloadPdf(r.ticker)
+                  }}
+                  disabled={downloadingTicker === r.ticker}
+                  title={`PDF für ${r.ticker} herunterladen`}
+                  aria-label={`PDF für ${r.ticker} herunterladen`}
+                  className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-memo-muted transition-colors hover:bg-memo-line2 hover:text-memo-ink disabled:opacity-50"
+                >
+                  {downloadingTicker === r.ticker ? (
+                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-memo-line border-t-memo-ink" />
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-3.5 w-3.5"
+                    >
+                      <path d="M12 3v12" />
+                      <path d="m7 10 5 5 5-5" />
+                      <path d="M5 21h14" />
+                    </svg>
+                  )}
+                </button>
+              )}
             </li>
           )
         })}

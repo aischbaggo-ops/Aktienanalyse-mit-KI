@@ -298,6 +298,8 @@ export function DashboardPage() {
             userId={user?.id}
             onWatchlistChanged={loadWatchlist}
             onOpenTicker={navigateToAnalyse}
+            onDownloadPdf={handleDownloadPdf}
+            downloadingTicker={downloadingTicker}
           />
         )}
       </section>
