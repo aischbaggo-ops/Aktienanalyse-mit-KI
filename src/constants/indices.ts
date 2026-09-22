@@ -13,6 +13,7 @@ export const SUPPORTED_INDICES: IndexOption[] = [
   { id: 'sdax', label: 'SDAX' },
   { id: 'sp500', label: 'S&P 500' },
   { id: 'nasdaq100', label: 'NASDAQ 100' },
+  { id: 'dowjones', label: 'Dow Jones' },
 ]
 
 // "Top N" = die ersten N Werte in der von der Datenquelle gelieferten
