@@ -6,6 +6,12 @@ import { getIndexConstituents, type IndexConstituent } from '../lib/webhooks'
 
 const ALL = 'all'
 
+// Nur aktivierte Indizes im Menue - DAX/MDAX/SDAX sind zurueckgestellt
+// (FMP-Plan-Limitierung fuer XETRA-Ticker), siehe Kommentar in
+// constants/indices.ts. Das Backend lehnt einen deaktivierten Index
+// ohnehin zusaetzlich ab, das hier blendet ihn nur aus dem Menue aus.
+const ENABLED_INDICES = SUPPORTED_INDICES.filter((idx) => idx.enabled)
+
 // Auswahl eines Index (oder "Top N" davon) als Alternative zur Freitext-
 // Eingabe (siehe BatchSelectionPanel). Laedt die Mitgliederliste ueber
 // getIndexConstituents() und zeigt sie in derselben Checkbox-Vorschau.
@@ -18,7 +24,7 @@ export function IndexSelectionPanel({
   accessToken: string | undefined
   onStart: (tickers: string[]) => Promise<string | null>
 }) {
-  const [indexId, setIndexId] = useState(SUPPORTED_INDICES[0].id)
+  const [indexId, setIndexId] = useState(ENABLED_INDICES[0].id)
   const [topN, setTopN] = useState<string>(ALL)
   const [loading, setLoading] = useState(false)
   const [loaded, setLoaded] = useState<IndexConstituent[] | null>(null)
@@ -70,7 +76,7 @@ export function IndexSelectionPanel({
           disabled={disabled}
           className="rounded-lg border border-memo-line bg-white px-3 py-2.5 text-sm text-navy-950 outline-none focus:border-memo-ink disabled:opacity-60"
         >
-          {SUPPORTED_INDICES.map((idx) => (
+          {ENABLED_INDICES.map((idx) => (
             <option key={idx.id} value={idx.id}>
               {idx.label}
             </option>
