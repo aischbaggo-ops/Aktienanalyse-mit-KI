@@ -14,6 +14,8 @@ export interface BatchResult {
   name?: string | null
   score?: number | null
   analysisId?: string | null
+  // Gleiche Quelle wie Watchlist/"Letzte Analysen" (chart_data.profileMeta.image).
+  image?: string | null
 }
 
 export interface BatchOptions {
@@ -143,15 +145,21 @@ export function useBatchAnalysis(accessToken: string | undefined, onFinished?: (
     if (okTickers.length > 0) {
       const { data } = await supabase
         .from('stock_analyses')
-        .select('id, ticker, company_name, score_total')
+        .select('id, ticker, company_name, score_total, chart_data')
         .in('ticker', okTickers)
       const byTicker = new Map((data ?? []).map((row) => [row.ticker as string, row]))
       setResults(
         collected.map((r) => {
           const row = byTicker.get(r.ticker)
-          return row
-            ? { ...r, name: row.company_name as string | null, score: row.score_total as number | null, analysisId: row.id as string }
-            : r
+          if (!row) return r
+          const meta = (row.chart_data as { profileMeta?: { image?: string | null } } | null)?.profileMeta
+          return {
+            ...r,
+            name: row.company_name as string | null,
+            score: row.score_total as number | null,
+            analysisId: row.id as string,
+            image: meta?.image ?? null,
+          }
         }),
       )
     }
