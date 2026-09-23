@@ -24,7 +24,7 @@ export function AdminAccessRequests() {
   const load = useCallback(async () => {
     const { data, error: loadError } = await supabase
       .from('access_requests')
-      .select('id, name, contact, message, status, created_at, invited_at')
+      .select('id, name, email, contact, message, status, created_at, invited_at')
       .order('created_at', { ascending: false })
       .limit(200)
     if (loadError) setError(loadError.message)
@@ -49,8 +49,8 @@ export function AdminAccessRequests() {
     setBusyId(null)
   }
 
-  // "Erledigt": loest die Einladungsmail aus, statt nur den Status zu
-  // setzen. Bei Fehler (z.B. Kontaktweg ist keine gueltige E-Mail-Adresse,
+  // "Erledigt": loest die Einladungsmail an request.email aus, statt nur
+  // den Status zu setzen. Bei Fehler (z.B. eine Alt-Anfrage ohne email-Feld,
   // oder Supabase lehnt die Einladung ab) bleibt der Status unveraendert -
   // die Fehlermeldung der Function wird 1:1 angezeigt, damit der Admin
   // weiss, woran es lag (z.B. manuell einladen).
@@ -105,6 +105,9 @@ export function AdminAccessRequests() {
     return (
       <tr key={r.id}>
         <td className="py-2.5 pr-4 align-top text-memo-ink">{r.name ?? '—'}</td>
+        <td className="py-2.5 pr-4 align-top text-memo-ink">
+          {r.email ?? <span className="text-memo-minusText" title="Alt-Anfrage ohne E-Mail-Feld">—</span>}
+        </td>
         <td className="py-2.5 pr-4 align-top text-memo-ink">{r.contact}</td>
         <td className="max-w-xs py-2.5 pr-4 align-top text-memo-ink">{renderMessage(r)}</td>
         <td className="whitespace-nowrap py-2.5 pr-4 align-top text-memo-muted">
@@ -116,7 +119,7 @@ export function AdminAccessRequests() {
               <button
                 onClick={() => approve(r.id)}
                 disabled={busyId === r.id || !session?.access_token}
-                title="Sendet eine Einladungsmail an den angegebenen Kontaktweg (muss eine E-Mail-Adresse sein)"
+                title={r.email ? `Sendet eine Einladungsmail an ${r.email}` : 'Alt-Anfrage ohne E-Mail-Feld - Einladung wird fehlschlagen'}
                 className="rounded-sm border border-memo-plus px-3 py-1 text-xs font-medium text-memo-plusText transition-colors hover:border-memo-ink disabled:opacity-50"
               >
                 {busyId === r.id ? 'Lädt Einladung...' : 'Erledigt (einladen)'}
@@ -148,6 +151,7 @@ export function AdminAccessRequests() {
     <thead>
       <tr className="border-b border-memo-line2 text-left text-xs uppercase tracking-wide text-memo-muted">
         <th className="py-2 pr-4 font-medium">Name</th>
+        <th className="py-2 pr-4 font-medium">E-Mail</th>
         <th className="py-2 pr-4 font-medium">Kontaktweg</th>
         <th className="py-2 pr-4 font-medium">Nachricht</th>
         <th className="py-2 pr-4 font-medium">Zeitpunkt</th>
@@ -162,10 +166,10 @@ export function AdminAccessRequests() {
         Zugangsanfragen{open.length > 0 ? ` — ${open.length} neu` : ''}
       </p>
       <p className="mb-3 text-xs text-memo-muted">
-        „Erledigt“ verschickt automatisch eine Einladungsmail an den angegebenen Kontaktweg – das
-        funktioniert nur, wenn dort eine echte E-Mail-Adresse steht (nicht bei Telefonnummer o. ä.,
-        dann bitte manuell in Supabase unter Authentication → Users → Add user einladen). „Ablehnen“
-        ändert nur den Status, es wird nichts gelöscht.
+        „Erledigt“ verschickt automatisch eine Einladungsmail an die hinterlegte E-Mail-Adresse. Nur
+        bei Alt-Anfragen ohne E-Mail-Feld schlägt das fehl – dann bitte manuell in Supabase unter
+        Authentication → Users → Add user einladen. „Ablehnen“ ändert nur den Status, es wird nichts
+        gelöscht.
       </p>
       {error && <p className="mb-2 text-sm text-memo-minusText">{error}</p>}
       {loading ? (
