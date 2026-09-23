@@ -268,10 +268,14 @@ export type AccessRequestStatus = 'neu' | 'erledigt' | 'abgelehnt'
 export interface AccessRequest {
   id: string
   name: string | null
+  // Alt-Anfragen (vor 2026-09-23) haben kein email-Feld - siehe Migration
+  // 20260923100000. Neue Anfragen erzwingen es ueber die Insert-RLS-Policy.
+  email: string | null
   contact: string
   message: string | null
   status: AccessRequestStatus
   created_at: string
+  invited_at: string | null
   [key: string]: unknown
 }
 

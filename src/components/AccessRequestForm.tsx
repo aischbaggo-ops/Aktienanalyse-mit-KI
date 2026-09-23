@@ -11,6 +11,7 @@ const labelCls = 'mb-1.5 block text-xs uppercase tracking-wide text-memo-muted'
 // Insert (auch ohne Login erlaubt) in access_requests - es entsteht kein Login.
 export function AccessRequestForm() {
   const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
   const [contact, setContact] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -21,7 +22,7 @@ export function AccessRequestForm() {
     e.preventDefault()
     setError(null)
 
-    const built = buildAccessRequest({ name, contact, message })
+    const built = buildAccessRequest({ name, email, contact, message })
     if ('error' in built) {
       setError(built.error)
       return
@@ -36,6 +37,7 @@ export function AccessRequestForm() {
       return
     }
     setName('')
+    setEmail('')
     setContact('')
     setMessage('')
     setSent(true)
@@ -59,7 +61,7 @@ export function AccessRequestForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <p className="text-xs text-memo-muted">
-        Der Zugang wird manuell vergeben. Schreib kurz, wie ich dich erreiche, dann melde ich mich bei dir.
+        Der Zugang wird geprüft und die Einladung an deine E-Mail-Adresse verschickt.
       </p>
       <div>
         <label className={labelCls}>Name (optional)</label>
@@ -73,6 +75,18 @@ export function AccessRequestForm() {
         />
       </div>
       <div>
+        <label className={labelCls}>E-Mail-Adresse</label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          maxLength={ACCESS_REQUEST_LIMITS.email}
+          required
+          className={inputCls}
+          placeholder="Hierhin geht die Einladung"
+        />
+      </div>
+      <div>
         <label className={labelCls}>Kontaktweg</label>
         <input
           type="text"
@@ -80,7 +94,7 @@ export function AccessRequestForm() {
           onChange={(e) => setContact(e.target.value)}
           maxLength={ACCESS_REQUEST_LIMITS.contact}
           className={inputCls}
-          placeholder="E-Mail, Telefon oder anderer Weg"
+          placeholder="Telefon, Messenger o. ä. für Rückfragen"
         />
       </div>
       <div>

@@ -5,6 +5,7 @@ const SAVE_API_KEYS_WEBHOOK_URL = import.meta.env.VITE_SAVE_API_KEYS_WEBHOOK_URL
 const ADMIN_CHAT_WEBHOOK_URL = import.meta.env.VITE_ADMIN_CHAT_WEBHOOK_URL
 const ADMIN_USERS_WEBHOOK_URL = import.meta.env.VITE_ADMIN_USERS_WEBHOOK_URL
 const INDEX_CONSTITUENTS_WEBHOOK_URL = import.meta.env.VITE_INDEX_CONSTITUENTS_WEBHOOK_URL
+const APPROVE_ACCESS_REQUEST_WEBHOOK_URL = import.meta.env.VITE_APPROVE_ACCESS_REQUEST_WEBHOOK_URL
 
 export interface AdminUserRow {
   id: string
@@ -27,6 +28,27 @@ export async function fetchAdminUsers(accessToken: string): Promise<AdminUserRow
     throw new Error(data.error ?? `Nutzerliste konnte nicht geladen werden (${res.status})`)
   }
   return data.users ?? []
+}
+
+export interface ApproveAccessRequestResult {
+  invitedAt: string
+}
+
+// Genehmigt eine Zugangsanfrage und loest serverseitig die Einladungsmail
+// aus (supabase.auth.admin.inviteUserByEmail) - siehe approve-access-request
+// Function. Wirft bei einer ungueltigen E-Mail im Kontaktweg-Feld, bereits
+// bearbeiteten Anfragen oder einem Fehler bei Supabase Auth.
+export async function approveAccessRequest(requestId: string, accessToken: string): Promise<ApproveAccessRequestResult> {
+  const res = await fetch(APPROVE_ACCESS_REQUEST_WEBHOOK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ request_id: requestId }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || data.error) {
+    throw new Error(data.error ?? `Genehmigung fehlgeschlagen (${res.status})`)
+  }
+  return { invitedAt: data.invited_at }
 }
 
 export interface SymbolSearchResult {
