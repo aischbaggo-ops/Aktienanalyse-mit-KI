@@ -272,6 +272,7 @@ export interface AccessRequest {
   message: string | null
   status: AccessRequestStatus
   created_at: string
+  invited_at: string | null
   [key: string]: unknown
 }
 

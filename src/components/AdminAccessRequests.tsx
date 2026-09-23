@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { approveAccessRequest } from '../lib/webhooks'
 import type { AccessRequest, AccessRequestStatus } from '../types/database'
 
 const PREVIEW_LEN = 100
 
 // Zugangsanfragen aus dem Formular auf der Login-Seite (Tabelle access_requests,
-// lesen/aendern nur Admins per RLS). Es gibt keinen automatischen Account-
-// Mechanismus: Der Admin legt den Account manuell in Supabase an. Aktionen
-// aendern nur den Status, es wird nichts geloescht.
+// lesen/aendern nur Admins per RLS). "Erledigt" ruft serverseitig
+// approve-access-request auf, die direkt die Konto-Einladung auslöst
+// (supabase.auth.admin.inviteUserByEmail) - kein manuelles Anlegen mehr
+// noetig. "Ablehnen" aendert weiterhin nur den Status, es wird nichts
+// geloescht.
 export function AdminAccessRequests() {
+  const { session } = useAuth()
   const [requests, setRequests] = useState<AccessRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -19,7 +24,7 @@ export function AdminAccessRequests() {
   const load = useCallback(async () => {
     const { data, error: loadError } = await supabase
       .from('access_requests')
-      .select('id, name, contact, message, status, created_at')
+      .select('id, name, contact, message, status, created_at, invited_at')
       .order('created_at', { ascending: false })
       .limit(200)
     if (loadError) setError(loadError.message)
@@ -42,6 +47,27 @@ export function AdminAccessRequests() {
     if (updateError) setError(updateError.message)
     else setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)))
     setBusyId(null)
+  }
+
+  // "Erledigt": loest die Einladungsmail aus, statt nur den Status zu
+  // setzen. Bei Fehler (z.B. Kontaktweg ist keine gueltige E-Mail-Adresse,
+  // oder Supabase lehnt die Einladung ab) bleibt der Status unveraendert -
+  // die Fehlermeldung der Function wird 1:1 angezeigt, damit der Admin
+  // weiss, woran es lag (z.B. manuell einladen).
+  async function approve(id: string) {
+    if (busyId || !session?.access_token) return
+    setBusyId(id)
+    setError(null)
+    try {
+      const { invitedAt } = await approveAccessRequest(id, session.access_token)
+      setRequests((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, status: 'erledigt', invited_at: invitedAt } : r)),
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Genehmigung fehlgeschlagen.')
+    } finally {
+      setBusyId(null)
+    }
   }
 
   function toggleExpanded(id: string) {
@@ -88,11 +114,12 @@ export function AdminAccessRequests() {
           {withActions ? (
             <span className="inline-flex gap-2">
               <button
-                onClick={() => setStatus(r.id, 'erledigt')}
-                disabled={busyId === r.id}
+                onClick={() => approve(r.id)}
+                disabled={busyId === r.id || !session?.access_token}
+                title="Sendet eine Einladungsmail an den angegebenen Kontaktweg (muss eine E-Mail-Adresse sein)"
                 className="rounded-sm border border-memo-plus px-3 py-1 text-xs font-medium text-memo-plusText transition-colors hover:border-memo-ink disabled:opacity-50"
               >
-                Erledigt
+                {busyId === r.id ? 'Lädt Einladung...' : 'Erledigt (einladen)'}
               </button>
               <button
                 onClick={() => setStatus(r.id, 'abgelehnt')}
@@ -105,6 +132,11 @@ export function AdminAccessRequests() {
           ) : (
             <span className={r.status === 'erledigt' ? 'text-memo-plusText' : 'text-memo-muted'}>
               {r.status === 'erledigt' ? 'erledigt' : 'abgelehnt'}
+              {r.status === 'erledigt' && r.invited_at && (
+                <span className="block text-[11px] text-memo-muted">
+                  Einladung: {new Date(r.invited_at).toLocaleString('de-DE')}
+                </span>
+              )}
             </span>
           )}
         </td>
@@ -130,8 +162,10 @@ export function AdminAccessRequests() {
         Zugangsanfragen{open.length > 0 ? ` — ${open.length} neu` : ''}
       </p>
       <p className="mb-3 text-xs text-memo-muted">
-        Nach Prüfung: Account manuell in Supabase anlegen (Authentication → Users → Add user) und die
-        Zugangsdaten auf dem angegebenen Weg mitteilen. „Erledigt“ und „Ablehnen“ ändern nur den Status.
+        „Erledigt“ verschickt automatisch eine Einladungsmail an den angegebenen Kontaktweg – das
+        funktioniert nur, wenn dort eine echte E-Mail-Adresse steht (nicht bei Telefonnummer o. ä.,
+        dann bitte manuell in Supabase unter Authentication → Users → Add user einladen). „Ablehnen“
+        ändert nur den Status, es wird nichts gelöscht.
       </p>
       {error && <p className="mb-2 text-sm text-memo-minusText">{error}</p>}
       {loading ? (
