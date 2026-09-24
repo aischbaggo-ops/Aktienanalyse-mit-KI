@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import type { RequestLog, FunctionError } from '../types/database'
+import type { RequestLog, FunctionError, AppEvent } from '../types/database'
 import { SeriesBarChart } from '../components/memo/Charts'
 import { AdminFeatureAccess } from '../components/AdminFeatureAccess'
 import { AdminAccessRequests } from '../components/AdminAccessRequests'
@@ -33,6 +33,16 @@ type FailedRequest = Pick<RequestLog, 'ticker' | 'requested_at' | 'error_message
 type DataGapRequest = Pick<RequestLog, 'ticker' | 'requested_at'>
 type DeviationRequest = Pick<RequestLog, 'ticker' | 'requested_at' | 'deviation_amount'>
 
+interface ApiCallStats {
+  provider: string
+  totalCalls: number
+  failedCalls: number
+  avgDurationMs: number | null
+  tokensInput: number
+  tokensOutput: number
+  costUsd: number
+}
+
 export function AdminPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [requests, setRequests] = useState<RequestLog[]>([])
@@ -41,6 +51,8 @@ export function AdminPage() {
   const [dataGapRequests, setDataGapRequests] = useState<DataGapRequest[]>([])
   const [showDataGaps, setShowDataGaps] = useState(false)
   const [deviationRequests, setDeviationRequests] = useState<DeviationRequest[]>([])
+  const [apiCallStats, setApiCallStats] = useState<ApiCallStats[]>([])
+  const [events, setEvents] = useState<AppEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
@@ -75,6 +87,8 @@ export function AdminPage() {
         { data: runsTodayRows, error: e15 },
         { count: searchesTodayCount, error: e16 },
         { data: functionErrorRows, error: e17 },
+        { data: apiCallRows, error: e18 },
+        { data: eventRows, error: e19 },
       ] = await Promise.all([
         supabase.from('request_log').select('*', { count: 'exact', head: true }),
         supabase
@@ -146,10 +160,23 @@ export function AdminPage() {
           .select('function_name, user_id, error_message, created_at')
           .order('created_at', { ascending: false })
           .limit(20),
+        // Granulares Tracking (letzte 7 Tage - laenger gibt's wegen des
+        // Cleanup-Jobs ohnehin nicht, siehe Migration 20260925090000).
+        // Aggregation nach Anbieter passiert unten client-seitig, gleiches
+        // Muster wie topTickers.
+        supabase
+          .from('api_call_log')
+          .select('provider, success, duration_ms, tokens_input, tokens_output, cost_usd')
+          .limit(20000),
+        supabase
+          .from('app_events')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(50),
       ])
 
       const firstError =
-        e1 || e2 || e3 || e4 || e5 || e6 || e7 || e8 || e9 || e10 || e11 || e12 || e13 || e14 || e15 || e16 || e17
+        e1 || e2 || e3 || e4 || e5 || e6 || e7 || e8 || e9 || e10 || e11 || e12 || e13 || e14 || e15 || e16 || e17 || e18 || e19
       if (firstError) throw firstError
 
       const tickerCounts = new Map<string, number>()
@@ -187,6 +214,29 @@ export function AdminPage() {
         hourlyRuns[hour] += 1
       }
 
+      const apiCallByProvider = new Map<string, { total: number; failed: number; durSum: number; tin: number; tout: number; cost: number }>()
+      for (const row of apiCallRows ?? []) {
+        const agg = apiCallByProvider.get(row.provider) ?? { total: 0, failed: 0, durSum: 0, tin: 0, tout: 0, cost: 0 }
+        agg.total += 1
+        if (!row.success) agg.failed += 1
+        agg.durSum += row.duration_ms ?? 0
+        agg.tin += row.tokens_input ?? 0
+        agg.tout += row.tokens_output ?? 0
+        agg.cost += row.cost_usd ?? 0
+        apiCallByProvider.set(row.provider, agg)
+      }
+      const apiCallStatsList: ApiCallStats[] = [...apiCallByProvider.entries()]
+        .map(([provider, agg]) => ({
+          provider,
+          totalCalls: agg.total,
+          failedCalls: agg.failed,
+          avgDurationMs: agg.total > 0 ? agg.durSum / agg.total : null,
+          tokensInput: agg.tin,
+          tokensOutput: agg.tout,
+          costUsd: agg.cost,
+        }))
+        .sort((a, b) => b.totalCalls - a.totalCalls)
+
       setMetrics({
         requestsToday: todayCount ?? 0,
         requestsTotal: total,
@@ -209,6 +259,8 @@ export function AdminPage() {
       setFunctionErrors(functionErrorRows ?? [])
       setDataGapRequests(dataGapRows ?? [])
       setDeviationRequests(deviationRows ?? [])
+      setApiCallStats(apiCallStatsList)
+      setEvents(eventRows ?? [])
     } catch (err) {
       setError(
         err instanceof Error
@@ -447,6 +499,106 @@ export function AdminPage() {
                       >
                         {copiedFnErrorIdx === idx ? 'Kopiert!' : 'Kopieren'}
                       </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <p className="mb-1 text-xs font-medium uppercase tracking-wide text-memo-muted">
+          Token-/Latenz-Tracking (API-Calls)
+        </p>
+        <p className="mb-3 text-xs text-memo-muted">
+          Jeder einzelne FMP-/Claude-Call, aggregiert pro Anbieter - letzte 7 Tage (siehe Aufbewahrung
+          unten).
+        </p>
+        {apiCallStats.length === 0 ? (
+          <p className="text-sm text-memo-muted">Keine API-Calls protokolliert.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-memo-line2 text-left text-xs uppercase tracking-wide text-memo-muted">
+                  <th className="py-2 pr-4 font-medium">Anbieter</th>
+                  <th className="py-2 pr-4 font-medium">Calls</th>
+                  <th className="py-2 pr-4 font-medium">Fehlgeschlagen</th>
+                  <th className="py-2 pr-4 font-medium">Ø Latenz</th>
+                  <th className="py-2 pr-4 font-medium">Tokens (in/out)</th>
+                  <th className="py-2 font-medium">Kosten</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-memo-line2">
+                {apiCallStats.map((s) => (
+                  <tr key={s.provider}>
+                    <td className="py-2.5 pr-4 text-memo-ink">{s.provider}</td>
+                    <td className="py-2.5 pr-4 text-memo-muted">{s.totalCalls}</td>
+                    <td className={`py-2.5 pr-4 ${s.failedCalls > 0 ? 'text-memo-minusText' : 'text-memo-muted'}`}>
+                      {s.failedCalls}
+                    </td>
+                    <td className="py-2.5 pr-4 text-memo-muted">
+                      {s.avgDurationMs != null ? `${(s.avgDurationMs / 1000).toFixed(1)}s` : '–'}
+                    </td>
+                    <td className="py-2.5 pr-4 text-memo-muted">
+                      {s.tokensInput > 0 || s.tokensOutput > 0
+                        ? `${s.tokensInput.toLocaleString('de-DE')} / ${s.tokensOutput.toLocaleString('de-DE')}`
+                        : '–'}
+                    </td>
+                    <td className="py-2.5 text-memo-ink">{s.costUsd > 0 ? `$${s.costUsd.toFixed(3)}` : '–'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <p className="mb-1 text-xs font-medium uppercase tracking-wide text-memo-muted">
+          Ereignisse / Auffälligkeiten
+        </p>
+        <p className="mb-3 text-xs text-memo-muted">
+          Auch "stille" Fehlschläge (HTTP-technisch erfolgreich, Ziel aber nicht erreicht) - z. B.
+          Einladung verschickt, aber nie ein Passwort gesetzt. Letzte 7 Tage.
+        </p>
+        {events.length === 0 ? (
+          <p className="text-sm text-memo-muted">Keine Ereignisse protokolliert.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-memo-line2 text-left text-xs uppercase tracking-wide text-memo-muted">
+                  <th className="py-2 pr-4 font-medium">Ereignis</th>
+                  <th className="py-2 pr-4 font-medium">Status</th>
+                  <th className="py-2 pr-4 font-medium">Function</th>
+                  <th className="py-2 pr-4 font-medium">Zeitpunkt</th>
+                  <th className="py-2 font-medium">Details</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-memo-line2">
+                {events.map((ev, idx) => (
+                  <tr key={idx}>
+                    <td className="py-2.5 pr-4 align-top text-memo-ink">{ev.event_type}</td>
+                    <td
+                      className={`py-2.5 pr-4 align-top ${
+                        ev.status === 'ok'
+                          ? 'text-memo-plusText'
+                          : ev.status === 'suspicious'
+                            ? 'text-ampel-yellow'
+                            : 'text-memo-minusText'
+                      }`}
+                    >
+                      {ev.status}
+                    </td>
+                    <td className="whitespace-nowrap py-2.5 pr-4 align-top text-memo-muted">{ev.function_name}</td>
+                    <td className="whitespace-nowrap py-2.5 pr-4 align-top text-memo-muted">
+                      {new Date(ev.created_at).toLocaleString('de-DE')}
+                    </td>
+                    <td className="py-2.5 align-top text-memo-muted">
+                      {ev.details ? JSON.stringify(ev.details) : '–'}
                     </td>
                   </tr>
                 ))}
