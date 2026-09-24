@@ -166,6 +166,7 @@ export interface ProfileMeta {
   marketCap: number | null
   exchange: string | null
   industry: string | null
+  description: string | null
 }
 
 export interface ChartData {

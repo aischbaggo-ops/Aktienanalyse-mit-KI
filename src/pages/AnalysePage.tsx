@@ -32,6 +32,7 @@ export function AnalysePage() {
   const [watchlistError, setWatchlistError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabKey>('quickcheck')
   const [indexWeightings, setIndexWeightings] = useState<IndexWeighting[]>([])
+  const [descExpanded, setDescExpanded] = useState(false)
 
   useEffect(() => {
     if (!ticker) return
@@ -259,6 +260,23 @@ export function AnalysePage() {
                     Gewichtung
                   </span>
                 ))}
+              </div>
+            )}
+
+            {meta?.description && (
+              <div className="mt-2 pl-14">
+                <p className={`text-xs leading-relaxed text-memo-muted ${descExpanded ? '' : 'line-clamp-3'}`}>
+                  {meta.description}
+                </p>
+                {meta.description.length > 220 && (
+                  <button
+                    type="button"
+                    onClick={() => setDescExpanded((v) => !v)}
+                    className="mt-1 text-xs font-medium text-memo-ink underline hover:opacity-70"
+                  >
+                    {descExpanded ? 'weniger anzeigen' : 'mehr anzeigen'}
+                  </button>
+                )}
               </div>
             )}
           </div>
