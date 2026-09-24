@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { generateAnalysisPdf } from '../utils/pdfExport'
 import { scoreLabel, scoreLabelColorClass, scoreBandHex, scoreBandFill } from '../lib/score'
 import { formatMarketCap } from '../lib/memoFormat'
+import { getIndexWeighting, type IndexWeighting } from '../lib/webhooks'
 import type { StockAnalysis, WarningEntry } from '../types/database'
 import { QuickCheckTab } from './analyse/QuickCheckTab'
 import { QualitaetTab } from './analyse/QualitaetTab'
@@ -22,7 +23,7 @@ type TabKey = (typeof TABS)[number]['key']
 
 export function AnalysePage() {
   const { ticker } = useParams<{ ticker: string }>()
-  const { user } = useAuth()
+  const { user, session } = useAuth()
 
   const [analysis, setAnalysis] = useState<StockAnalysis | null>(null)
   const [loading, setLoading] = useState(true)
@@ -30,6 +31,7 @@ export function AnalysePage() {
   const [watchlistBusy, setWatchlistBusy] = useState(false)
   const [watchlistError, setWatchlistError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabKey>('quickcheck')
+  const [indexWeightings, setIndexWeightings] = useState<IndexWeighting[]>([])
 
   useEffect(() => {
     if (!ticker) return
@@ -88,6 +90,27 @@ export function AnalysePage() {
       cancelled = true
     }
   }, [user, ticker, analysis?.status])
+
+  useEffect(() => {
+    if (!ticker || !session?.access_token) {
+      setIndexWeightings([])
+      return
+    }
+    let cancelled = false
+    getIndexWeighting(ticker, session.access_token)
+      .then((weightings) => {
+        if (!cancelled) setIndexWeightings(weightings)
+      })
+      .catch(() => {
+        // Rein informative Anzeige - bei jedem Fehler einfach ausblenden,
+        // siehe Auftrag ("silently omit"), kein Error-State fuer den Rest
+        // der Analyse-Seite.
+        if (!cancelled) setIndexWeightings([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [ticker, session?.access_token])
 
   async function toggleWatchlist() {
     if (!user || !ticker) return
@@ -167,7 +190,7 @@ export function AnalysePage() {
   const score = analysis.score_total
   const meta = analysis.chart_data?.profileMeta
   const marketCapText = formatMarketCap(meta?.marketCap, analysis.currency)
-  const hasMetaRow = Boolean(marketCapText || meta?.industry || meta?.exchange)
+  const hasMetaRow = Boolean(marketCapText || meta?.industry || meta?.exchange || indexWeightings.length > 0)
 
   return (
     <div className="space-y-6 rounded-xl border border-memo-line bg-memo-paper p-6 shadow-card sm:p-8">
@@ -223,6 +246,19 @@ export function AnalysePage() {
                     Börse <strong className="font-semibold text-memo-ink">{meta.exchange}</strong>
                   </span>
                 )}
+                {(marketCapText || meta?.industry || meta?.exchange) && indexWeightings.length > 0 && (
+                  <span>·</span>
+                )}
+                {indexWeightings.map((w, i) => (
+                  <span key={w.indexId}>
+                    {i > 0 && <span className="mr-2">·</span>}
+                    {w.label}{' '}
+                    <strong className="font-semibold text-memo-ink">
+                      {w.weightPct.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %
+                    </strong>{' '}
+                    Gewichtung
+                  </span>
+                ))}
               </div>
             )}
           </div>
