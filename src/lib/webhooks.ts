@@ -1,13 +1,25 @@
-const ANALYSE_WEBHOOK_URL = import.meta.env.VITE_ANALYSE_WEBHOOK_URL
-const SYMBOL_SEARCH_WEBHOOK_URL = import.meta.env.VITE_SYMBOL_SEARCH_WEBHOOK_URL
-const DELETE_ACCOUNT_WEBHOOK_URL = import.meta.env.VITE_DELETE_ACCOUNT_WEBHOOK_URL
-const SAVE_API_KEYS_WEBHOOK_URL = import.meta.env.VITE_SAVE_API_KEYS_WEBHOOK_URL
-const ADMIN_CHAT_WEBHOOK_URL = import.meta.env.VITE_ADMIN_CHAT_WEBHOOK_URL
-const ADMIN_USERS_WEBHOOK_URL = import.meta.env.VITE_ADMIN_USERS_WEBHOOK_URL
-const INDEX_CONSTITUENTS_WEBHOOK_URL = import.meta.env.VITE_INDEX_CONSTITUENTS_WEBHOOK_URL
-const INDEX_WEIGHT_WEBHOOK_URL = import.meta.env.VITE_INDEX_WEIGHT_WEBHOOK_URL
-const APPROVE_ACCESS_REQUEST_WEBHOOK_URL = import.meta.env.VITE_APPROVE_ACCESS_REQUEST_WEBHOOK_URL
-const LOG_EVENT_WEBHOOK_URL = import.meta.env.VITE_LOG_EVENT_WEBHOOK_URL
+// Alle Edge Functions liegen unter demselben Supabase-Projekt unter
+// /functions/v1/<name> - eine einzige, ohnehin schon zwingend gesetzte
+// Basis-Variable (VITE_SUPABASE_URL, siehe lib/supabase.ts) reicht dafuer.
+// Vorher hatte JEDE Function ihre eigene VITE_*_WEBHOOK_URL, die bei jeder
+// neuen Function zusaetzlich manuell in Vercel gepflegt werden musste (pro
+// Environment/Scope getrennt) - das hat wiederholt zu 405-Fehlern gefuehrt
+// (Function existiert und funktioniert, aber die Env-Var wurde fuer eine
+// Umgebung vergessen: index-constituents, approve-access-request,
+// index-weight, save-llm-key). Mit dieser Ableitung entfaellt diese
+// Fehlerklasse fuer jede bestehende UND kuenftige Function.
+const FUNCTIONS_BASE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`
+
+const ANALYSE_WEBHOOK_URL = `${FUNCTIONS_BASE_URL}/analyse`
+const SYMBOL_SEARCH_WEBHOOK_URL = `${FUNCTIONS_BASE_URL}/symbol-search`
+const DELETE_ACCOUNT_WEBHOOK_URL = `${FUNCTIONS_BASE_URL}/delete-account`
+const SAVE_API_KEYS_WEBHOOK_URL = `${FUNCTIONS_BASE_URL}/save-api-keys`
+const ADMIN_CHAT_WEBHOOK_URL = `${FUNCTIONS_BASE_URL}/admin-chat`
+const ADMIN_USERS_WEBHOOK_URL = `${FUNCTIONS_BASE_URL}/admin-users`
+const INDEX_CONSTITUENTS_WEBHOOK_URL = `${FUNCTIONS_BASE_URL}/index-constituents`
+const INDEX_WEIGHT_WEBHOOK_URL = `${FUNCTIONS_BASE_URL}/index-weight`
+const APPROVE_ACCESS_REQUEST_WEBHOOK_URL = `${FUNCTIONS_BASE_URL}/approve-access-request`
+const LOG_EVENT_WEBHOOK_URL = `${FUNCTIONS_BASE_URL}/log-event`
 
 export interface AdminUserRow {
   id: string
