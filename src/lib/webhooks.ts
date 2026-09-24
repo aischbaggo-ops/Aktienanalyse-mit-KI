@@ -5,6 +5,7 @@ const SAVE_API_KEYS_WEBHOOK_URL = import.meta.env.VITE_SAVE_API_KEYS_WEBHOOK_URL
 const ADMIN_CHAT_WEBHOOK_URL = import.meta.env.VITE_ADMIN_CHAT_WEBHOOK_URL
 const ADMIN_USERS_WEBHOOK_URL = import.meta.env.VITE_ADMIN_USERS_WEBHOOK_URL
 const INDEX_CONSTITUENTS_WEBHOOK_URL = import.meta.env.VITE_INDEX_CONSTITUENTS_WEBHOOK_URL
+const INDEX_WEIGHT_WEBHOOK_URL = import.meta.env.VITE_INDEX_WEIGHT_WEBHOOK_URL
 const APPROVE_ACCESS_REQUEST_WEBHOOK_URL = import.meta.env.VITE_APPROVE_ACCESS_REQUEST_WEBHOOK_URL
 
 export interface AdminUserRow {
@@ -134,6 +135,38 @@ export async function getIndexConstituents(
     constituents: data.constituents ?? [],
     note: data.note,
   }
+}
+
+export interface IndexWeighting {
+  indexId: string
+  label: string
+  weightPct: number
+}
+
+// Rein informative Zusatzanzeige (siehe AnalysePage) - liefert leer statt
+// zu werfen, wenn der Ticker in keinem der aktivierten Indizes vertreten
+// ist oder die Function selbst nichts findet; ein echter Netzwerkfehler
+// wird vom Aufrufer ebenfalls nur stillschweigend als "keine Anzeige"
+// behandelt, siehe getIndexWeighting()-Aufruf in AnalysePage.tsx.
+export async function getIndexWeighting(ticker: string, accessToken: string): Promise<IndexWeighting[]> {
+  const res = await fetch(INDEX_WEIGHT_WEBHOOK_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ ticker }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || data.error) {
+    throw new Error(data.error ?? `Index-Gewichtung konnte nicht geladen werden (${res.status})`)
+  }
+  const list = Array.isArray(data.weightings) ? data.weightings : []
+  return list.map((w: Record<string, unknown>) => ({
+    indexId: String(w.index_id ?? ''),
+    label: String(w.label ?? ''),
+    weightPct: Number(w.weight_pct ?? 0),
+  }))
 }
 
 export type AnalyseSource = 'cache' | 'processing'
