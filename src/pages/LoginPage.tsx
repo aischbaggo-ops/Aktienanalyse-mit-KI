@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { AccessRequestForm } from '../components/AccessRequestForm'
+import { supabase } from '../lib/supabase'
 
 export function LoginPage() {
   const { session, signIn } = useAuth()
@@ -10,6 +11,8 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [resetSubmitting, setResetSubmitting] = useState(false)
+  const [resetMessage, setResetMessage] = useState<string | null>(null)
 
   if (session) {
     return <Navigate to="/dashboard" replace />
@@ -22,6 +25,23 @@ export function LoginPage() {
     const { error } = await signIn(email, password)
     if (error) setError(error)
     setSubmitting(false)
+  }
+
+  // Gleiche, immer identische Rueckmeldung unabhaengig davon, ob die
+  // Adresse tatsaechlich existiert (verhindert E-Mail-Enumeration ueber
+  // diesen Weg - Supabase selbst verhaelt sich serverseitig genauso).
+  async function handleForgotPassword() {
+    setError(null)
+    if (!email.trim()) {
+      setError('Bitte trage zuerst deine E-Mail-Adresse oben ein.')
+      return
+    }
+    setResetSubmitting(true)
+    await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/passwort-setzen`,
+    })
+    setResetSubmitting(false)
+    setResetMessage('Falls ein Konto mit dieser Adresse existiert, wurde eine E-Mail zum Zurücksetzen verschickt.')
   }
 
   return (
@@ -83,6 +103,7 @@ export function LoginPage() {
               </div>
 
               {error && <p className="text-sm text-memo-minusText">{error}</p>}
+              {resetMessage && <p className="text-sm text-memo-plusText">{resetMessage}</p>}
 
               <button
                 type="submit"
@@ -92,6 +113,17 @@ export function LoginPage() {
                 {submitting ? 'Bitte warten...' : 'Anmelden'}
               </button>
             </form>
+
+            <p className="mt-4 text-center text-xs text-memo-muted">
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={resetSubmitting}
+                className="underline hover:text-memo-ink disabled:opacity-60"
+              >
+                Passwort vergessen?
+              </button>
+            </p>
 
             <p className="mt-6 text-center text-xs text-memo-muted">
               Kein Zugang?{' '}

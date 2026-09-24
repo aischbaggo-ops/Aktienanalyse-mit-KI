@@ -5,6 +5,7 @@ import { Layout } from './components/Layout'
 import { AdminLayout } from './components/AdminLayout'
 import { LandingPage } from './pages/LandingPage'
 import { LoginPage } from './pages/LoginPage'
+import { SetPasswordPage } from './pages/SetPasswordPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { AnalysePage } from './pages/AnalysePage'
 import { AdminPage } from './pages/AdminPage'
@@ -18,6 +19,7 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/passwort-setzen" element={<SetPasswordPage />} />
 
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
