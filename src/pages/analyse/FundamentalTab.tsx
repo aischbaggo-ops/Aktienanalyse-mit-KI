@@ -1,15 +1,30 @@
 import type { FairValueData, StockAnalysis } from '../../types/database'
 import { fmtCompact, fmtMoney, fmtPct, dash } from '../../lib/memoFormat'
 import { SeriesBarChart, MultiLineChart } from '../../components/memo/Charts'
+import { InfoTooltip } from '../../components/InfoTooltip'
+import type { GlossaryTerm } from '../../lib/glossary'
 
 function hasRealData(values: (number | null)[]): boolean {
   return values.some((v) => v != null && v !== 0)
 }
 
-function ValuationCell({ label, metric, currency }: { label: string; metric?: { value: number | null; label: string }; currency: string }) {
+function ValuationCell({
+  label,
+  term,
+  metric,
+  currency,
+}: {
+  label: string
+  term: GlossaryTerm
+  metric?: { value: number | null; label: string }
+  currency: string
+}) {
   return (
     <div className="border border-memo-line px-4 py-3">
-      <p className="mb-1 text-xs uppercase tracking-wide text-memo-muted">{label}</p>
+      <p className="mb-1 text-xs uppercase tracking-wide text-memo-muted">
+        {label}
+        <InfoTooltip term={term} />
+      </p>
       <p className="font-analyst text-lg text-memo-ink">
         {metric?.value != null ? `${metric.value.toFixed(1)}×` : dash()}
       </p>
@@ -29,7 +44,9 @@ function FairValueCard({ fairValue, currency }: { fairValue?: FairValueData; cur
   if (!fairValue || fairValue.value == null) {
     return (
       <div className="border border-memo-line px-4 py-3 sm:col-span-2">
-        <p className="mb-1 text-xs uppercase tracking-wide text-memo-muted">Fair Value (Ø-KGV/KCV + DCF)</p>
+        <p className="mb-1 text-xs uppercase tracking-wide text-memo-muted">
+          Fair Value<InfoTooltip term="fairValue" /> (Ø-KGV<InfoTooltip term="kgv" />/KCV<InfoTooltip term="kcv" /> + DCF<InfoTooltip term="dcf" />)
+        </p>
         <p className="font-analyst text-lg text-memo-ink">{dash()}</p>
         <p className="text-xs text-memo-muted">{fairValue?.label ?? 'keine Bewertung möglich'}</p>
       </div>
@@ -47,7 +64,9 @@ function FairValueCard({ fairValue, currency }: { fairValue?: FairValueData; cur
 
   return (
     <div className="border border-memo-line px-4 py-3 sm:col-span-2">
-      <p className="mb-1 text-xs uppercase tracking-wide text-memo-muted">Fair Value (Ø-KGV/KCV + DCF)</p>
+      <p className="mb-1 text-xs uppercase tracking-wide text-memo-muted">
+        Fair Value<InfoTooltip term="fairValue" /> (Ø-KGV<InfoTooltip term="kgv" />/KCV<InfoTooltip term="kcv" /> + DCF<InfoTooltip term="dcf" />)
+      </p>
       <p className="font-analyst text-lg text-memo-ink">
         {fmtMoney(fairValue.value, currency)}
         <span className="ml-2 text-sm font-normal text-memo-muted">{fairValue.label}</span>
@@ -76,7 +95,8 @@ export function FundamentalTab({ analysis }: { analysis: StockAnalysis }) {
     <div className="space-y-8">
       <div>
         <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-memo-muted">
-          Bruttogewinn / EBIT / EBITDA / Nettogewinn
+          Bruttogewinn<InfoTooltip term="bruttogewinn" /> / EBIT<InfoTooltip term="ebit" /> / EBITDA
+          <InfoTooltip term="ebitda" /> / Nettogewinn<InfoTooltip term="nettogewinn" />
         </h3>
         <MultiLineChart
           years={fs.years}
@@ -100,7 +120,7 @@ export function FundamentalTab({ analysis }: { analysis: StockAnalysis }) {
         <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-memo-muted">Bewertungskennzahlen</h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <FairValueCard fairValue={valuation?.fair_value} currency={currency} />
-          <ValuationCell label="EV/Umsatz" metric={valuation?.ev_umsatz} currency={currency} />
+          <ValuationCell label="EV/Umsatz" term="evUmsatz" metric={valuation?.ev_umsatz} currency={currency} />
         </div>
         {valuation?.verfuegbar === false && (
           <p className="mt-2 text-xs text-memo-grau">{valuation.hinweis}</p>
@@ -111,7 +131,9 @@ export function FundamentalTab({ analysis }: { analysis: StockAnalysis }) {
         <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-memo-muted">Details</h3>
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <div>
-            <p className="mb-1.5 text-xs text-memo-muted">Cashflow (operativ + FCF)</p>
+            <p className="mb-1.5 text-xs text-memo-muted">
+              Cashflow (operativ + FCF<InfoTooltip term="fcf" />)
+            </p>
             <MultiLineChart
               years={fs.years}
               marginRight={64}
@@ -123,7 +145,9 @@ export function FundamentalTab({ analysis }: { analysis: StockAnalysis }) {
             />
           </div>
           <div>
-            <p className="mb-1.5 text-xs text-memo-muted">Margen (Brutto/Operativ/Netto)</p>
+            <p className="mb-1.5 text-xs text-memo-muted">
+              Margen<InfoTooltip term="marge" /> (Brutto/Operativ/Netto)
+            </p>
             <MultiLineChart
               years={fs.years}
               marginRight={36}
@@ -137,7 +161,10 @@ export function FundamentalTab({ analysis }: { analysis: StockAnalysis }) {
           </div>
           {showGoodwill && (
             <div>
-              <p className="mb-1.5 text-xs text-memo-muted">Goodwill</p>
+              <p className="mb-1.5 text-xs text-memo-muted">
+                Goodwill
+                <InfoTooltip term="goodwill" />
+              </p>
               <SeriesBarChart years={fs.years} values={fs.goodwill} formatValue={(v) => fmtCompact(v, currency)} />
             </div>
           )}

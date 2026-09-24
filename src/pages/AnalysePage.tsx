@@ -6,6 +6,8 @@ import { generateAnalysisPdf } from '../utils/pdfExport'
 import { scoreLabel, scoreLabelColorClass, scoreBandHex, scoreBandFill } from '../lib/score'
 import { formatMarketCap } from '../lib/memoFormat'
 import { getIndexWeighting, type IndexWeighting } from '../lib/webhooks'
+import { InfoTooltip } from '../components/InfoTooltip'
+import type { GlossaryTerm } from '../lib/glossary'
 import type { StockAnalysis, WarningEntry } from '../types/database'
 import { QuickCheckTab } from './analyse/QuickCheckTab'
 import { QualitaetTab } from './analyse/QualitaetTab'
@@ -233,6 +235,7 @@ export function AnalysePage() {
                 {marketCapText && (
                   <span>
                     Marktkap. <strong className="font-semibold text-memo-ink">{marketCapText}</strong>
+                    <InfoTooltip term="marktkap" />
                   </span>
                 )}
                 {marketCapText && (meta?.industry || meta?.exchange) && <span>·</span>}
@@ -258,6 +261,7 @@ export function AnalysePage() {
                       {w.weightPct.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %
                     </strong>{' '}
                     Gewichtung
+                    {i === 0 && <InfoTooltip term="indexGewichtung" />}
                   </span>
                 ))}
               </div>
@@ -369,11 +373,11 @@ function normalizeWarnings(warnings: StockAnalysis['warnings']): string[] {
 }
 
 const RADAR_DIMENSIONS = [
-  { key: 'score_qualitaet', label: 'Qualität' },
-  { key: 'score_fundamental', label: 'Fundamental' },
-  { key: 'score_krise', label: 'Krise' },
-  { key: 'score_trend', label: 'Trend' },
-] as const satisfies { key: keyof StockAnalysis; label: string }[]
+  { key: 'score_qualitaet', label: 'Qualität', term: 'qualitaet' },
+  { key: 'score_fundamental', label: 'Fundamental', term: 'fundamental' },
+  { key: 'score_krise', label: 'Krise', term: 'krise' },
+  { key: 'score_trend', label: 'Trend', term: 'trend' },
+] as const satisfies { key: keyof StockAnalysis; label: string; term: GlossaryTerm }[]
 
 function polarPoint(cx: number, cy: number, r: number, angleDeg: number): [number, number] {
   const rad = (angleDeg * Math.PI) / 180
@@ -412,6 +416,7 @@ function AnalyseRadarChart({ analysis }: { analysis: StockAnalysis }) {
               <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: scoreBandHex(v) }} />
               <span>
                 {d.label} {v !== null && v !== undefined ? v.toFixed(0) : '–'}
+                <InfoTooltip term={d.term} />
               </span>
             </div>
           )
