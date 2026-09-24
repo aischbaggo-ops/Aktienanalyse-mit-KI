@@ -60,21 +60,17 @@ export function useBatchAnalysis(accessToken: string | undefined, onFinished?: (
     setEstimating(true)
 
     const cutoff = new Date(Date.now() - CACHE_MAX_AGE_DAYS * 24 * 60 * 60 * 1000).toISOString()
-    const [cacheRes, costRes] = await Promise.all([
+    // Kostendurchschnitt kommt aus einer RPC statt einer Direktabfrage auf
+    // stock_analyses_costs - die Tabelle selbst ist admin-only (Pentest-Fix,
+    // siehe Migration 20260924120000), die RPC liefert bewusst nur den
+    // aggregierten Mittelwert, nie einzelne Zeilen/Kosten.
+    const [cacheRes, costRpc] = await Promise.all([
       options.forceRefresh
         ? Promise.resolve({ data: [] as { ticker: string }[] })
         : supabase.from('stock_analyses').select('ticker').in('ticker', list).eq('status', 'done').gte('updated_at', cutoff),
-      supabase
-        .from('stock_analyses')
-        .select('cost_usd_claude')
-        .not('cost_usd_claude', 'is', null)
-        .order('updated_at', { ascending: false })
-        .limit(20),
+      supabase.rpc('get_avg_recent_analysis_cost'),
     ])
-    const costs = (costRes.data ?? [])
-      .map((r) => r.cost_usd_claude as number | null)
-      .filter((c): c is number => typeof c === 'number')
-    const avgCost = costs.length > 0 ? costs.reduce((a, b) => a + b, 0) / costs.length : null
+    const avgCost = typeof costRpc.data === 'number' ? costRpc.data : null
 
     setEstimate(estimateBatch(list.length, cacheRes.data?.length ?? 0, avgCost))
     setEstimating(false)
