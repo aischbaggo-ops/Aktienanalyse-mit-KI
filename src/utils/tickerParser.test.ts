@@ -34,6 +34,33 @@ describe('parseTickers', () => {
     expect(parseTickers('BRK.B, BF-B, SAP.DE')).toEqual(['BRK.B', 'BF-B', 'SAP.DE'])
   })
 
+  it('erkennt klein- und gemischt geschriebene Ticker und normalisiert sie auf Grossbuchstaben', () => {
+    // Bare Ticker allein auf einer Zeile - Hauptfall aus dem Bugreport.
+    expect(parseTickers('nvda')).toEqual(['NVDA'])
+    expect(parseTickers('brk.b')).toEqual(['BRK.B'])
+    expect(parseTickers('nvda\nmsft\ngoog')).toEqual(['NVDA', 'MSFT', 'GOOG'])
+    // Komma-/semikolongetrennte Liste.
+    expect(parseTickers('Nvda, msft, Googl')).toEqual(['NVDA', 'MSFT', 'GOOGL'])
+    // Tabellenzelle.
+    expect(parseTickers('| 1 | nvda | Nvidia |')).toEqual(['NVDA'])
+  })
+
+  it('dedupliziert unabhaengig von der Schreibweise', () => {
+    expect(parseTickers('NVDA, nvda, Nvda')).toEqual(['NVDA'])
+  })
+
+  it('bekannte Grenze: kleingeschriebener Ticker MITTEN in einer mehrwoertigen Zeile wird nicht erkannt', () => {
+    // Ohne Grossschreibung als Signal waere "nvda" nicht von "Nvidia"/"Corp"
+    // unterscheidbar - siehe Kommentar in tickerParser.ts. Bewusste Grenze,
+    // kein Bug.
+    expect(parseTickers('1. nvda Nvidia Corp')).toEqual([])
+  })
+
+  it('regressionstest: kurze Woerter in Fliesstext werden weiterhin nicht als Ticker erkannt', () => {
+    expect(parseTickers('nur Fliesstext ohne Ticker 123')).toEqual([])
+    expect(parseTickers('3 AAPL Apple Inc.')).toEqual(['AAPL'])
+  })
+
   it('nimmt bei Varianten den ersten Ticker', () => {
     expect(parseTickers('| 5 | GOOGL / GOOG | Alphabet |')).toEqual(['GOOGL'])
     expect(parseTickers('GOOGL / GOOG, META')).toEqual(['GOOGL', 'META'])
