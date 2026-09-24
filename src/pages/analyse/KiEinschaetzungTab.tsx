@@ -49,7 +49,7 @@ export function KiEinschaetzungTab({ analysis }: { analysis: StockAnalysis }) {
         </h3>
         {prognose?.verfuegbar && prognose.pfad ? (
           <>
-            <CorridorChart pfad={prognose.pfad} />
+            <CorridorChart pfad={prognose.pfad} historie={analysis.chart_data?.priceMonthly?.stock} />
             {prognose.baer && prognose.basis && prognose.bull && (
               <div className="mt-4 max-w-sm">
                 <ProbabilityBar

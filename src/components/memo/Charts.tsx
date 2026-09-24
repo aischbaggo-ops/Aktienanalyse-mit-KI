@@ -492,8 +492,39 @@ export function ProbabilityBar({ baer, basis, bull }: { baer: number; basis: num
   )
 }
 
-/** Erwartungskorridor: Baer/Basis/Bull-Kurspfade mit Wahrscheinlichkeitsflaeche. */
-export function CorridorChart({ pfad, height = 240 }: { pfad: PrognosePfadPunkt[]; height?: number }) {
+const COLOR_HISTORY = '#7a7a7a'
+
+// Wandelt ein Monats-Datum ("YYYY-MM-DD") in einen fraktionalen Jahreswert
+// um (z.B. "2024-07-15" -> 2024.5) - gemeinsame X-Achsen-Skala fuer die
+// monatlich aufgeloeste Historie und den nur jaehrlich aufgeloesten
+// Prognose-Pfad, siehe CorridorChart().
+function fracYear(dateStr: string): number {
+  const [y, m] = dateStr.split('-').map(Number)
+  return y + ((m ?? 1) - 1) / 12
+}
+
+/**
+ * Erwartungskorridor: letzte 5 Jahre tatsaechlicher Kurshistorie (duenne
+ * graue Linie) gehen nahtlos in den Baer/Basis/Bull-Prognose-Faecher
+ * (ab dem aktuellen Jahr) ueber - eine durchgehende Y-Achse, kein
+ * getrenntes Chart.
+ *
+ * Der Nahtpunkt (letzter Historien-Punkt = erster Prognose-Punkt) wird
+ * bewusst auf den Prognose-Startwert (pfad[0], baer=basis=bull=
+ * aktueller Kurs) gelegt statt auf den zuletzt bekannten historischen
+ * Schlusskurs - beide Werte stammen aus getrennten Datenabrufen und
+ * koennten leicht auseinanderlaufen, was am Uebergang wie ein Sprung
+ * aussaehe. So ist die Nahtlosigkeit per Konstruktion garantiert.
+ */
+export function CorridorChart({
+  pfad,
+  historie,
+  height = 240,
+}: {
+  pfad: PrognosePfadPunkt[]
+  historie?: MonthlyPricePoint[]
+  height?: number
+}) {
   if (!pfad || pfad.length < 2) return <EmptyNote text="Kein Erwartungskorridor berechenbar (fehlende Analysten-Schätzungen)." />
 
   const width = 800
@@ -503,28 +534,70 @@ export function CorridorChart({ pfad, height = 240 }: { pfad: PrognosePfadPunkt[
   const plotW = width - marginLeft - 8
   const plotH = height - marginTop - marginBottom
 
-  const allValues = pfad.flatMap((p) => [p.baer, p.basis, p.bull]).filter((v): v is number => typeof v === 'number')
-  if (allValues.length === 0) return <EmptyNote text="Kein Erwartungskorridor berechenbar (fehlende Analysten-Schätzungen)." />
+  const allForecastValues = pfad.flatMap((p) => [p.baer, p.basis, p.bull]).filter((v): v is number => typeof v === 'number')
+  if (allForecastValues.length === 0) return <EmptyNote text="Kein Erwartungskorridor berechenbar (fehlende Analysten-Schätzungen)." />
 
+  const seamYear = pfad[0].jahr
+  const seamValue = pfad[0].basis ?? pfad[0].baer ?? pfad[0].bull ?? null
+
+  const histFiltered = (historie ?? [])
+    .filter((p) => typeof p.close === 'number' && Number(p.date.slice(0, 4)) >= seamYear - 5 && Number(p.date.slice(0, 4)) <= seamYear)
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  const histPoints = histFiltered.map((p) => ({ x: fracYear(p.date), v: p.close }))
+  // Letzten Historien-Punkt auf den Prognose-Startwert "umbiegen" (siehe
+  // Kommentar oben) - Position (x) bleibt der echte letzte Kurstermin,
+  // nur der Wert (v) wird an den Nahtpunkt angeglichen.
+  if (histPoints.length > 0 && seamValue != null) {
+    histPoints[histPoints.length - 1] = { x: histPoints[histPoints.length - 1].x, v: seamValue }
+  }
+  const seamX = histPoints.length > 0 ? histPoints[histPoints.length - 1].x : seamYear
+
+  const forecastPoints = pfad.map((p) => ({ ...p, x: seamX + (p.jahr - seamYear) }))
+
+  const allValues = [...histPoints.map((p) => p.v), ...allForecastValues]
   const minV = Math.min(...allValues)
   const maxV = Math.max(...allValues)
   const span = maxV - minV || 1
-  const x = (i: number) => marginLeft + (i / (pfad.length - 1)) * plotW
+
+  const xMin = histPoints.length > 0 ? histPoints[0].x : seamX
+  const xMax = forecastPoints[forecastPoints.length - 1].x
+  const xSpan = xMax - xMin || 1
+
+  const xScale = (xv: number) => marginLeft + ((xv - xMin) / xSpan) * plotW
   const y = (v: number) => marginTop + (1 - (v - minV) / span) * plotH
 
+  const histPath = histPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xScale(p.x).toFixed(1)} ${y(p.v).toFixed(1)}`).join(' ')
+
   function linePath(key: 'baer' | 'basis' | 'bull') {
-    const pts = pfad.map((p, i) => (typeof p[key] === 'number' ? `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(p[key] as number).toFixed(1)}` : null)).filter(Boolean)
+    const pts = forecastPoints.map((p, i) => (typeof p[key] === 'number' ? `${i === 0 ? 'M' : 'L'} ${xScale(p.x).toFixed(1)} ${y(p[key] as number).toFixed(1)}` : null)).filter(Boolean)
     return pts.join(' ')
   }
 
-  const bandTop = pfad.map((p, i) => (typeof p.bull === 'number' ? `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(p.bull).toFixed(1)}` : '')).join(' ')
-  const bandBottom = pfad.slice().reverse().map((p, i) => {
-    const idx = pfad.length - 1 - i
-    return typeof p.baer === 'number' ? `L ${x(idx).toFixed(1)} ${y(p.baer).toFixed(1)}` : ''
+  const bandTop = forecastPoints.map((p, i) => (typeof p.bull === 'number' ? `${i === 0 ? 'M' : 'L'} ${xScale(p.x).toFixed(1)} ${y(p.bull).toFixed(1)}` : '')).join(' ')
+  const bandBottom = forecastPoints.slice().reverse().map((p, i) => {
+    const idx = forecastPoints.length - 1 - i
+    return typeof p.baer === 'number' ? `L ${xScale(forecastPoints[idx].x).toFixed(1)} ${y(p.baer).toFixed(1)}` : ''
   }).join(' ')
   const bandPath = `${bandTop} ${bandBottom} Z`
 
   const ticks = [0, 1, 2, 3].map((t) => minV + (span * t) / 3)
+
+  // X-Achsen-Jahresbeschriftung: ein Label je Kalenderjahr aus der
+  // Historie (am jeweils ersten verfuegbaren Monatspunkt des Jahres) plus
+  // ein Label je Prognose-Jahr (wie zuvor) - das Nahtjahr wird nur einmal
+  // beschriftet (durch den Prognose-Punkt, nicht zusaetzlich durch die
+  // Historie).
+  const histYearLabels: { x: number; label: string }[] = []
+  const seenYears = new Set<number>()
+  for (const p of histPoints) {
+    const yr = Math.floor(p.x)
+    if (yr === seamYear || seenYears.has(yr)) continue
+    seenYears.add(yr)
+    histYearLabels.push({ x: p.x, label: String(yr) })
+  }
+  const forecastYearLabels = forecastPoints.map((p) => ({ x: p.x, label: String(p.jahr) }))
+  const yearLabels = [...histYearLabels, ...forecastYearLabels]
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height }} preserveAspectRatio="none">
@@ -537,12 +610,21 @@ export function CorridorChart({ pfad, height = 240 }: { pfad: PrognosePfadPunkt[
         </g>
       ))}
       <path d={bandPath} fill={COLOR_GRAU} opacity={0.12} stroke="none" />
+      {histPoints.length > 1 && <path d={histPath} fill="none" stroke={COLOR_HISTORY} strokeWidth={1.25} />}
       <path d={linePath('bull')} fill="none" stroke={COLOR_PLUS} strokeWidth={1.75} />
       <path d={linePath('basis')} fill="none" stroke={COLOR_INK} strokeWidth={1.75} />
       <path d={linePath('baer')} fill="none" stroke={COLOR_MINUS} strokeWidth={1.75} />
-      {pfad.map((p, i) => (
-        <text key={i} x={x(i)} y={height - 4} textAnchor={i === 0 ? 'start' : i === pfad.length - 1 ? 'end' : 'middle'} fontSize={10} fill={COLOR_MUTED}>
-          {p.jahr}
+      {histPoints.length > 1 && (
+        <>
+          <line x1={xScale(seamX)} x2={xScale(seamX)} y1={marginTop} y2={marginTop + plotH} stroke={COLOR_MUTED} strokeWidth={1} strokeDasharray="2 3" />
+          <text x={xScale(seamX)} y={marginTop + 9} textAnchor="middle" fontSize={9} fill={COLOR_MUTED}>
+            heute
+          </text>
+        </>
+      )}
+      {yearLabels.map((l, i) => (
+        <text key={i} x={xScale(l.x)} y={height - 4} textAnchor={i === 0 ? 'start' : i === yearLabels.length - 1 ? 'end' : 'middle'} fontSize={10} fill={COLOR_MUTED}>
+          {l.label}
         </text>
       ))}
     </svg>
