@@ -1,5 +1,6 @@
 import type { CriterionEntry, StockAnalysis } from '../../types/database'
 import { MEMO_PLUS, MEMO_MINUS, MEMO_GRAU } from '../../lib/memoColors.js'
+import { InfoTooltip } from '../../components/InfoTooltip'
 
 const KO_NAMES = ['Keine Skandale', 'Keine schweren Vorwuerfe gegen Unternehmen', 'Keine schweren Vorwuerfe gegen Management']
 
@@ -61,7 +62,10 @@ export function QualitaetTab({ analysis }: { analysis: StockAnalysis }) {
   return (
     <div className="space-y-8">
       <div>
-        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-memo-muted">SWOT</h3>
+        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-memo-muted">
+          SWOT
+          <InfoTooltip term="swot" />
+        </h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <SwotBlock title="Stärken" items={swot?.staerken} />
           <SwotBlock title="Schwächen" items={swot?.schwaechen} />
@@ -72,7 +76,10 @@ export function QualitaetTab({ analysis }: { analysis: StockAnalysis }) {
 
       <div className="flex flex-wrap items-start justify-between gap-6">
         <div>
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-memo-muted">Härtegrad</h3>
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-memo-muted">
+            Härtegrad
+            <InfoTooltip term="haertegrad" />
+          </h3>
           <div className="flex flex-wrap gap-2">
             {haertegradKeys.map((key) => (
               <span
@@ -86,7 +93,10 @@ export function QualitaetTab({ analysis }: { analysis: StockAnalysis }) {
         </div>
 
         <div>
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-memo-muted">K.O.-Kriterien</h3>
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-memo-muted">
+            K.O.-Kriterien
+            <InfoTooltip term="koKriterien" />
+          </h3>
           {koVerletzt.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {koVerletzt.map((c) => (

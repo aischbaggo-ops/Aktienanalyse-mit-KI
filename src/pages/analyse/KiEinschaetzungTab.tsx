@@ -1,6 +1,8 @@
 import type { StockAnalysis } from '../../types/database'
 import { fmtMoney, dash } from '../../lib/memoFormat'
 import { CorridorChart, ProbabilityBar } from '../../components/memo/Charts'
+import { InfoTooltip } from '../../components/InfoTooltip'
+import type { GlossaryTerm } from '../../lib/glossary'
 
 function directionArrow(action: string): string {
   if (action === 'upgrade') return '↑'
@@ -20,9 +22,10 @@ export function KiEinschaetzungTab({ analysis }: { analysis: StockAnalysis }) {
   const baerFairValue = prognose?.verfuegbar ? prognose.baer?.fair_value_heute ?? null : null
   const bullFairValue = prognose?.verfuegbar ? prognose.bull?.fair_value_heute ?? null : null
 
-  const verfahren: { label: string; wert: string; sub?: string }[] = [
+  const verfahren: { label: string; term?: GlossaryTerm; wert: string; sub?: string }[] = [
     {
       label: 'Eigenes Modell (Fair Value heute)',
+      term: 'fairValue',
       wert: basisFairValue != null ? fmtMoney(basisFairValue, currency) : dash(),
       sub:
         baerFairValue != null && bullFairValue != null
@@ -31,12 +34,14 @@ export function KiEinschaetzungTab({ analysis }: { analysis: StockAnalysis }) {
     },
     {
       label: 'Analysten-Kursziel (Konsens)',
+      term: 'analystenKonsens',
       wert: analystConsensus != null ? fmtMoney(analystConsensus.target, currency) : dash(),
       sub: analystConsensus != null ? `Ø aus ${analystConsensus.count} Schätzungen, 12-Monats-Horizont` : undefined,
     },
-    { label: 'Peer-Bewertung', wert: dash() },
+    { label: 'Peer-Bewertung', term: 'peerBewertung', wert: dash() },
     {
       label: 'DCF (heutiger Fair Value)',
+      term: 'dcf',
       wert: dcf?.dcf != null ? fmtMoney(dcf.dcf, dcf['Stock Price'] != null ? currency : '') : dash(),
     },
   ]
@@ -45,7 +50,8 @@ export function KiEinschaetzungTab({ analysis }: { analysis: StockAnalysis }) {
     <div className="space-y-8">
       <div>
         <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-memo-muted">
-          Erwartungskorridor (Bär / Basis / Bull)
+          Erwartungskorridor<InfoTooltip term="erwartungskorridor" /> (Bär / Basis / Bull
+          <InfoTooltip term="baerBasisBull" />)
         </h3>
         {prognose?.verfuegbar && prognose.pfad ? (
           <>
@@ -73,7 +79,10 @@ export function KiEinschaetzungTab({ analysis }: { analysis: StockAnalysis }) {
           <tbody>
             {verfahren.map((v) => (
               <tr key={v.label} className="border-b border-memo-line2 last:border-none">
-                <td className="py-2 pr-4 text-memo-ink">{v.label}</td>
+                <td className="py-2 pr-4 text-memo-ink">
+                  {v.label}
+                  {v.term && <InfoTooltip term={v.term} />}
+                </td>
                 <td className="py-2 text-right">
                   <span className="font-analyst text-memo-ink">{v.wert}</span>
                   {v.sub && <span className="block text-xs text-memo-muted">{v.sub}</span>}
