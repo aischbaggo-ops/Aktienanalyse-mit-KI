@@ -21,6 +21,7 @@ const INDEX_WEIGHT_WEBHOOK_URL = `${FUNCTIONS_BASE_URL}/index-weight`
 const APPROVE_ACCESS_REQUEST_WEBHOOK_URL = `${FUNCTIONS_BASE_URL}/approve-access-request`
 const LOG_EVENT_WEBHOOK_URL = `${FUNCTIONS_BASE_URL}/log-event`
 const VALIDATE_TICKERS_WEBHOOK_URL = `${FUNCTIONS_BASE_URL}/validate-tickers`
+const SAVE_LLM_KEY_WEBHOOK_URL = `${FUNCTIONS_BASE_URL}/save-llm-key`
 
 export interface AdminUserRow {
   id: string
@@ -244,6 +245,33 @@ export interface SaveApiKeysPayload {
 // werden ueberschrieben.
 export async function saveApiKeys(payload: SaveApiKeysPayload, accessToken: string): Promise<void> {
   const res = await fetch(SAVE_API_KEYS_WEBHOOK_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(payload),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || data.error) {
+    throw new Error(data.error ?? `Speichern fehlgeschlagen (${res.status})`)
+  }
+}
+
+export type LlmProvider = 'claude' | 'openai' | 'gemini' | 'openrouter'
+
+export interface SaveLlmKeyPayload {
+  provider: LlmProvider
+  api_key: string
+  // Pflicht ausser bei provider === 'claude' (siehe save-llm-key Function).
+  model?: string
+}
+
+// Speichert Key + Modellname EINES LLM-Anbieters, unabhaengig von den
+// anderen drei und unabhaengig davon, ob er dadurch aktiv wird (siehe
+// setActiveLlmProvider fuer den separaten Aktiv-Schalter).
+export async function saveLlmKey(payload: SaveLlmKeyPayload, accessToken: string): Promise<void> {
+  const res = await fetch(SAVE_LLM_KEY_WEBHOOK_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
