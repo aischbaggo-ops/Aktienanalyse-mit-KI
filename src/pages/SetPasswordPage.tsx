@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { logEvent } from '../lib/webhooks'
 
 const MIN_LENGTH = 8
 
@@ -30,6 +31,10 @@ export function SetPasswordPage() {
   useEffect(() => {
     if (!loading && !session && !done) {
       setError('Dieser Link ist ungültig oder abgelaufen. Bitte fordere einen neuen an.')
+      // Stiller Fehlschlag: die Einladungs-/Reset-Mail kam erfolgreich an,
+      // aber der Link fuehrt hier zu nichts - genau der Fall, der bei einer
+      // frueheren Einladung erst spaet auffiel (siehe app_events).
+      logEvent('password_set_invalid_link', 'failed')
     }
   }, [loading, session, done])
 
@@ -52,8 +57,10 @@ export function SetPasswordPage() {
 
     if (updateError) {
       setError(updateError.message)
+      logEvent('password_set_failed', 'failed', { message: updateError.message })
       return
     }
+    logEvent('password_set_success', 'ok')
     setDone(true)
     navigate('/dashboard', { replace: true })
   }

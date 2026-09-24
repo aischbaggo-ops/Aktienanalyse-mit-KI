@@ -301,6 +301,41 @@ export interface FunctionError {
   [key: string]: unknown
 }
 
+// Granulares Tracking JEDES einzelnen FMP-/Claude-Calls (nicht nur
+// aggregiert pro Analyse wie request_log) - siehe Migration
+// 20260925090000. Admin-only, 7 Tage Aufbewahrung.
+export interface ApiCallLog {
+  id?: string
+  function_name: string
+  provider: string
+  call_type: string | null
+  ticker: string | null
+  success: boolean
+  duration_ms: number
+  tokens_input: number | null
+  tokens_output: number | null
+  cost_usd: number | null
+  error_message: string | null
+  created_at: string
+  [key: string]: unknown
+}
+
+export type AppEventStatus = 'ok' | 'failed' | 'suspicious'
+
+// Allgemeines Ereignis-Log fuer "stille" Fehlschlaege (HTTP-technisch
+// erfolgreich, aber Ziel nicht erreicht) und Auffaelligkeiten - siehe
+// Migration 20260925090000. Admin-only, 7 Tage Aufbewahrung.
+export interface AppEvent {
+  id?: string
+  event_type: string
+  function_name: string
+  status: AppEventStatus
+  user_id: string | null
+  details: Record<string, unknown> | null
+  created_at: string
+  [key: string]: unknown
+}
+
 export interface Profile {
   id: string
   is_admin: boolean
@@ -385,6 +420,18 @@ export interface Database {
         Row: StockAnalysisCosts
         Insert: Partial<StockAnalysisCosts>
         Update: Partial<StockAnalysisCosts>
+        Relationships: []
+      }
+      api_call_log: {
+        Row: ApiCallLog
+        Insert: Partial<ApiCallLog>
+        Update: Partial<ApiCallLog>
+        Relationships: []
+      }
+      app_events: {
+        Row: AppEvent
+        Insert: Partial<AppEvent>
+        Update: Partial<AppEvent>
         Relationships: []
       }
     }

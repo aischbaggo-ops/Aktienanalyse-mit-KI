@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { AccessRequestForm } from '../components/AccessRequestForm'
 import { supabase } from '../lib/supabase'
+import { logEvent } from '../lib/webhooks'
 
 export function LoginPage() {
   const { session, signIn } = useAuth()
@@ -23,7 +24,15 @@ export function LoginPage() {
     setError(null)
     setSubmitting(true)
     const { error } = await signIn(email, password)
-    if (error) setError(error)
+    if (error) {
+      setError(error)
+      // Nur ein benignes Diagnose-Signal (z.B. Nutzer vertippt sich) - ein
+      // gezielter Angreifer wuerde diesen Client-Call schlicht nicht
+      // ausfuehren. Echte Bruteforce-Erkennung braeuchte Supabase's eigene
+      // Auth-Logs (Management API), siehe Kommentar in log-event/index.ts -
+      // bewusst nicht nachgebaut, siehe Auftrag.
+      logEvent('login_failed', 'failed', { email })
+    }
     setSubmitting(false)
   }
 

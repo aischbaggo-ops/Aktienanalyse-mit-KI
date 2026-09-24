@@ -7,6 +7,7 @@ const ADMIN_USERS_WEBHOOK_URL = import.meta.env.VITE_ADMIN_USERS_WEBHOOK_URL
 const INDEX_CONSTITUENTS_WEBHOOK_URL = import.meta.env.VITE_INDEX_CONSTITUENTS_WEBHOOK_URL
 const INDEX_WEIGHT_WEBHOOK_URL = import.meta.env.VITE_INDEX_WEIGHT_WEBHOOK_URL
 const APPROVE_ACCESS_REQUEST_WEBHOOK_URL = import.meta.env.VITE_APPROVE_ACCESS_REQUEST_WEBHOOK_URL
+const LOG_EVENT_WEBHOOK_URL = import.meta.env.VITE_LOG_EVENT_WEBHOOK_URL
 
 export interface AdminUserRow {
   id: string
@@ -287,4 +288,21 @@ export async function sendAdminChatMessage(
     throw new Error(data.error ?? `Chat-Anfrage fehlgeschlagen (${res.status})`)
   }
   return data
+}
+
+export type LogEventStatus = 'ok' | 'failed' | 'suspicious'
+
+// Best-effort Diagnose-Log fuer "stille" Fehlschlaege ohne bestehenden
+// Backend-Touchpoint (abgelaufener Passwort-Link, fehlgeschlagener Login -
+// siehe SetPasswordPage.tsx/LoginPage.tsx). Bewusst fire-and-forget: kein
+// await im Aufrufer noetig, ein Fehler hier darf den eigentlichen User-Flow
+// nie beeintraechtigen oder verzoegern. event_type muss serverseitig in der
+// Allowlist von supabase/functions/log-event stehen, sonst 400 (wird hier
+// ignoriert).
+export function logEvent(eventType: string, status: LogEventStatus, details?: Record<string, unknown>): void {
+  fetch(LOG_EVENT_WEBHOOK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event_type: eventType, status, details }),
+  }).catch(() => {})
 }
