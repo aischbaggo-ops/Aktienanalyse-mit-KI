@@ -86,7 +86,7 @@ export function AdminPage() {
           .select('*', { count: 'exact', head: true })
           .eq('source', 'cache'),
         supabase.from('request_log').select('ticker').limit(5000),
-        supabase.from('stock_analyses').select('cost_usd_claude'),
+        supabase.from('stock_analyses_costs').select('cost_usd_claude'),
         supabase
           .from('request_log')
           .select('*')

@@ -207,10 +207,22 @@ export interface StockAnalysis {
   prognose: PrognoseData | null
   chart_data: ChartData | null
   data_source: string | null
+  created_at: string
+  updated_at: string
+  [key: string]: unknown
+}
+
+// tokens_input/tokens_output/cost_usd_claude wurden aus stock_analyses
+// entfernt (Pentest-Fix, siehe Migration 20260924120000) - der geteilte
+// Cache ist fuer ALLE authentifizierten Nutzer lesbar, die Kosten pro
+// Analyse sollen das nicht sein. Eigene admin-only Tabelle stattdessen,
+// nur ueber AdminPage.tsx gelesen (gleiches is_admin-RLS-Muster wie
+// request_log/function_errors).
+export interface StockAnalysisCosts {
+  ticker: string
   tokens_input: number | null
   tokens_output: number | null
   cost_usd_claude: number | null
-  created_at: string
   updated_at: string
   [key: string]: unknown
 }
@@ -369,9 +381,16 @@ export interface Database {
         Update: Partial<UserApiKeys>
         Relationships: []
       }
+      stock_analyses_costs: {
+        Row: StockAnalysisCosts
+        Insert: Partial<StockAnalysisCosts>
+        Update: Partial<StockAnalysisCosts>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
+      get_avg_recent_analysis_cost: { Args: Record<string, never>; Returns: number | null }
       username_available: { Args: { p_username: string }; Returns: boolean }
       set_my_username: { Args: { p_username: string }; Returns: undefined }
       touch_last_seen: { Args: Record<string, never>; Returns: undefined }
