@@ -262,7 +262,9 @@ export type LlmProvider = 'claude' | 'openai' | 'gemini' | 'openrouter'
 
 export interface SaveLlmKeyPayload {
   provider: LlmProvider
-  api_key: string
+  // Leer/weggelassen -> nur der Modellname wird aktualisiert, bestehender
+  // Key bleibt unangetastet (siehe save-llm-key Function).
+  api_key?: string
   // Pflicht ausser bei provider === 'claude' (siehe save-llm-key Function).
   model?: string
 }

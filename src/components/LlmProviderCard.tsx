@@ -104,18 +104,30 @@ export function LlmProviderCard({
     !openRouterMatch.exact &&
     (openRouterMatch.suffixSuggestion !== null || openRouterMatch.suggestions.length > 0)
 
+  // "Geaendert" heisst: Feld enthaelt etwas anderes als den bereits
+  // gespeicherten Stand. Ein leeres Modellfeld gilt bewusst NICHT als
+  // Aenderung (Platzhalter-Text "gespeichert: X" impliziert: leer = alten
+  // Wert behalten), ebenso ein leeres Key-Feld ("Neuen Key eingeben, um zu
+  // ersetzen" impliziert: leer = bestehenden Key behalten).
+  const keyChanged = keyInput.trim() !== ''
+  const modelChanged = modelInput.trim() !== '' && modelInput.trim() !== (savedModel ?? '')
+  const canSave = keyChanged || modelChanged
+
   async function handleSave(e: FormEvent) {
     e.preventDefault()
     setError(null)
     setSaved(false)
-    if (!keyInput.trim()) return
+    if (!canSave) return
     if (modelRequired && !modelInput.trim() && !savedModel) {
       setError('Bitte gib einen Modellnamen an (bei diesem Anbieter Pflichtfeld).')
       return
     }
     setSaving(true)
     try {
-      await saveLlmKey({ provider, api_key: keyInput.trim(), model: modelInput.trim() || undefined }, accessToken)
+      await saveLlmKey(
+        { provider, api_key: keyChanged ? keyInput.trim() : undefined, model: modelInput.trim() || undefined },
+        accessToken,
+      )
       setKeyInput('')
       setModelInput('')
       setSaved(true)
@@ -199,7 +211,7 @@ export function LlmProviderCard({
 
         <button
           type="submit"
-          disabled={saving || !keyInput.trim()}
+          disabled={saving || !canSave}
           className="rounded-sm border border-memo-line px-3 py-1.5 text-xs font-medium text-memo-ink transition-colors hover:border-memo-ink disabled:cursor-not-allowed disabled:opacity-40"
         >
           {saving ? 'Speichern...' : 'Speichern'}
