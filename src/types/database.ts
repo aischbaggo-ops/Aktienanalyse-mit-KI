@@ -341,6 +341,7 @@ export interface Profile {
   is_admin: boolean
   username: string | null
   last_seen_at: string | null
+  active_llm_provider: LlmProvider
   [key: string]: unknown
 }
 
@@ -355,6 +356,21 @@ export interface UserApiKeys {
   claude_key_ciphertext: string | null
   claude_key_iv: string | null
   claude_key_last4: string | null
+  updated_at: string
+  [key: string]: unknown
+}
+
+export type LlmProvider = 'claude' | 'openai' | 'gemini' | 'openrouter'
+
+// Ciphertext/IV nie zur Anzeige verwendet, gleiches Muster wie UserApiKeys.
+export interface UserLlmKey {
+  user_id: string
+  provider: LlmProvider
+  key_ciphertext: string
+  key_iv: string
+  key_last4: string
+  model: string | null
+  created_at: string
   updated_at: string
   [key: string]: unknown
 }
@@ -441,6 +457,7 @@ export interface Database {
       username_available: { Args: { p_username: string }; Returns: boolean }
       set_my_username: { Args: { p_username: string }; Returns: undefined }
       touch_last_seen: { Args: Record<string, never>; Returns: undefined }
+      set_active_llm_provider: { Args: { p_provider: string }; Returns: undefined }
     }
     Enums: Record<string, never>
     CompositeTypes: Record<string, never>
