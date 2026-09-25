@@ -14,7 +14,11 @@ const LLM_PROVIDERS: {
 }[] = [
   { id: 'claude', label: 'Claude', modelRequired: false, modelPlaceholder: 'Standard: claude-sonnet-5' },
   { id: 'openai', label: 'ChatGPT', modelRequired: true, modelPlaceholder: 'z. B. gpt-4o' },
-  { id: 'gemini', label: 'Gemini', modelRequired: true, modelPlaceholder: 'z. B. gemini-2.0-flash' },
+  // gemini-2.0-flash wurde von Google am 1.6.2026 abgeschaltet (live
+  // recherchiert), gemini-2.5-flash/-pro folgen am 16.10.2026 - bewusst
+  // ein Modell mit laengerem Vorlauf als Platzhalter, kein Versprechen
+  // auf Dauer-Gueltigkeit.
+  { id: 'gemini', label: 'Gemini', modelRequired: true, modelPlaceholder: 'z. B. gemini-3.5-flash' },
   { id: 'openrouter', label: 'OpenRouter', modelRequired: true, modelPlaceholder: 'z. B. anthropic/claude-sonnet-5' },
 ]
 
