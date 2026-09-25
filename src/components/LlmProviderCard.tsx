@@ -12,20 +12,81 @@ import { saveLlmKey, type LlmProvider } from '../lib/webhooks'
 // Modell-Listen-Endpoints brauchen den (hier noch gar nicht gespeicherten)
 // eigenen Key des Nutzers - andere Abwaegung, nicht Teil dieses Fixes.
 const OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models'
-let openRouterModelsCache: string[] | null = null
 
-async function fetchOpenRouterModels(): Promise<string[]> {
+interface OpenRouterModel {
+  id: string
+  supported_parameters?: string[]
+  context_length?: number
+}
+
+let openRouterModelsCache: OpenRouterModel[] | null = null
+
+async function fetchOpenRouterModels(): Promise<OpenRouterModel[]> {
   if (openRouterModelsCache) return openRouterModelsCache
   try {
     const res = await fetch(OPENROUTER_MODELS_URL)
     if (!res.ok) return []
     const data = await res.json()
-    const ids = Array.isArray(data?.data) ? data.data.map((m: { id?: string }) => m.id).filter((id: unknown): id is string => typeof id === 'string') : []
-    openRouterModelsCache = ids
-    return ids
+    const models: OpenRouterModel[] = Array.isArray(data?.data)
+      ? data.data
+          .filter((m: unknown): m is { id: string } => typeof (m as { id?: unknown })?.id === 'string')
+          .map((m: { id: string; supported_parameters?: string[]; context_length?: number }) => ({
+            id: m.id,
+            supported_parameters: m.supported_parameters,
+            context_length: m.context_length,
+          }))
+      : []
+    openRouterModelsCache = models
+    return models
   } catch {
     return []
   }
+}
+
+// Kuratierungskriterien fuer die STANDARD-Vorschlagsliste im Autocomplete-
+// Dropdown - Freitext-Eingabe eines beliebigen anderen Modells bleibt davon
+// unabhaengig immer moeglich (siehe offCuratedList-Warnhinweis unten). Live
+// ueber OpenRouters /api/v1/models ermittelt (2026-09-25):
+// 1. Tool-/Function-Calling-Pflicht (supported_parameters enthaelt "tools") -
+//    unsere Analyse-Function braucht den strukturierten Tool-Output zwingend,
+//    Modelle ohne diese Faehigkeit sind fuer die Analyse-Aufgabe ungeeignet.
+// 2. Nur etablierte grosse Anbieter (Anthropic/OpenAI/Google/Meta/Mistral/
+//    xAI/DeepSeek/Qwen) - keine obskuren/kleinen Drittanbieter-Finetunes.
+// 3. Keine "mini/nano/lite/tiny/small/haiku"-Tier-Varianten - per WORTGRENZEN-
+//    Abgleich (Tokenisierung), NICHT reine Substring-Suche: ein naiver
+//    ".includes('mini')" wuerde z.B. "Gemini" faelschlich ausschliessen, weil
+//    das Wort "mini" darin als Teilstring vorkommt (live geprueft, echter Bug
+//    im ersten Entwurf dieses Filters).
+// 4. Keine expliziten Parametergroessen unter 30B im Modellnamen (z.B.
+//    "-8b", "-14b") - bei MoE-Namen wie "235b-a22b" zaehlt die ERSTE
+//    (Gesamt-)Groesse, nicht die "aXXb"-Aktiv-Parameter-Angabe.
+// 5. Mindestens 128K Kontextfenster - trennt in der Praxis sauber aeltere/
+//    kleinere Modellgenerationen (z.B. gpt-3.5-turbo, gpt-4, deepseek-r1,
+//    mixtral-8x22b) von der aktuellen Flaggschiff-Klasse ab.
+// 6. Keine reinen Bild-/Audio-Generierungsvarianten (am Namen erkennbar) -
+//    fuer unsere textbasierte, strukturierte Analyse-Ausgabe ungeeignet.
+// Ausserdem kein ":batch"/":free"-Suffix - fuer unseren synchronen Analyse-
+// Call nicht relevant bzw. typischerweise eingeschraenkter nutzbar.
+const CURATED_MAJOR_PROVIDERS = ['anthropic/', 'openai/', 'google/', 'meta-llama/', 'mistralai/', 'x-ai/', 'deepseek/', 'qwen/']
+const CURATED_EXCLUDE_TIER_WORDS = new Set(['mini', 'nano', 'lite', 'tiny', 'small', 'haiku'])
+const CURATED_MIN_CONTEXT = 128_000
+const CURATED_MIN_PARAM_B = 30
+
+function tokenize(id: string): string[] {
+  return id.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
+}
+
+function isCuratedOpenRouterModel(m: OpenRouterModel): boolean {
+  if (!m.supported_parameters?.includes('tools')) return false
+  if (!CURATED_MAJOR_PROVIDERS.some((p) => m.id.startsWith(p))) return false
+  if (m.id.endsWith(':batch') || m.id.endsWith(':free')) return false
+  const toks = new Set(tokenize(m.id))
+  for (const w of CURATED_EXCLUDE_TIER_WORDS) if (toks.has(w)) return false
+  if ((m.context_length ?? 0) < CURATED_MIN_CONTEXT) return false
+  const bMatch = m.id.match(/(\d+(?:\.\d+)?)b(?!\w)/i)
+  if (bMatch && parseFloat(bMatch[1]) < CURATED_MIN_PARAM_B) return false
+  if (toks.has('image') && !toks.has('vl')) return false
+  return true
 }
 
 interface OpenRouterMatch {
@@ -35,22 +96,37 @@ interface OpenRouterMatch {
   // Modell-ID stimmt exakt mit der Eingabe ueberein (z.B. Eingabe
   // "gemini-2.5-flash" -> "google/gemini-2.5-flash").
   suffixSuggestion: string | null
-  // Bis zu 8 Modell-IDs, die die Eingabe als Teilstring enthalten - zum
-  // Durchstoebern, falls weder exact noch suffixSuggestion greifen.
+  // Bis zu 8 Modell-IDs aus der KURATIERTEN Liste, die die Eingabe als
+  // Teilstring enthalten - zum Durchstoebern, falls weder exact noch
+  // suffixSuggestion greifen.
   suggestions: string[]
+  // Eingabe ist ein technisch gueltiges OpenRouter-Modell (exact-Treffer),
+  // aber nicht in der kuratierten Empfehlungsliste - kein Blocker, nur ein
+  // dezenter Warnhinweis (Freitext bleibt immer moeglich).
+  offCuratedList: boolean
 }
 
-function matchOpenRouterModel(input: string, allModels: string[]): OpenRouterMatch {
+function matchOpenRouterModel(input: string, allModels: OpenRouterModel[]): OpenRouterMatch {
   const needle = input.trim().toLowerCase()
-  if (!needle) return { exact: false, suffixSuggestion: null, suggestions: [] }
+  if (!needle) return { exact: false, suffixSuggestion: null, suggestions: [], offCuratedList: false }
 
-  const exact = allModels.some((id) => id.toLowerCase() === needle)
-  const suffixMatch = allModels.find((id) => id.toLowerCase().endsWith(`/${needle}`))
+  const exactModel = allModels.find((m) => m.id.toLowerCase() === needle)
+  const exact = Boolean(exactModel)
+  const suffixMatch = allModels.find((m) => m.id.toLowerCase().endsWith(`/${needle}`))
   const suggestions = exact
     ? []
-    : allModels.filter((id) => id.toLowerCase().includes(needle)).slice(0, 8)
+    : allModels
+        .filter(isCuratedOpenRouterModel)
+        .filter((m) => m.id.toLowerCase().includes(needle))
+        .map((m) => m.id)
+        .slice(0, 8)
 
-  return { exact, suffixSuggestion: exact ? null : suffixMatch ?? null, suggestions }
+  return {
+    exact,
+    suffixSuggestion: exact ? null : suffixMatch?.id ?? null,
+    suggestions,
+    offCuratedList: Boolean(exactModel) && !isCuratedOpenRouterModel(exactModel!),
+  }
 }
 
 // Ein Block pro LLM-Anbieter in der Konto-Seite: API-Key + Modellname,
@@ -84,7 +160,7 @@ export function LlmProviderCard({
   const [saved, setSaved] = useState(false)
 
   const isOpenRouter = provider === 'openrouter'
-  const [openRouterModels, setOpenRouterModels] = useState<string[]>([])
+  const [openRouterModels, setOpenRouterModels] = useState<OpenRouterModel[]>([])
   const [modelFieldFocused, setModelFieldFocused] = useState(false)
 
   useEffect(() => {
@@ -101,8 +177,8 @@ export function LlmProviderCard({
     modelFieldFocused &&
     modelInput.trim() !== '' &&
     openRouterMatch !== null &&
-    !openRouterMatch.exact &&
-    (openRouterMatch.suffixSuggestion !== null || openRouterMatch.suggestions.length > 0)
+    ((!openRouterMatch.exact && (openRouterMatch.suffixSuggestion !== null || openRouterMatch.suggestions.length > 0)) ||
+      openRouterMatch.offCuratedList)
 
   // "Geaendert" heisst: Feld enthaelt etwas anderes als den bereits
   // gespeicherten Stand. Ein leeres Modellfeld gilt bewusst NICHT als
@@ -172,7 +248,11 @@ export function LlmProviderCard({
           />
           {showOpenRouterHint && openRouterMatch && (
             <div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-sm border border-memo-line bg-white p-2.5 text-xs shadow-lg">
-              {openRouterMatch.suffixSuggestion ? (
+              {openRouterMatch.exact ? (
+                <p className="text-memo-muted">
+                  Dieses Modell ist nicht in unserer Empfehlungsliste – Ergebnisqualität ggf. eingeschränkt.
+                </p>
+              ) : openRouterMatch.suffixSuggestion ? (
                 <p className="text-memo-minusText">
                   Kein exakter Treffer - OpenRouter-Modell-IDs brauchen ein Anbieter-Präfix. Meintest du:{' '}
                   <button
@@ -185,9 +265,9 @@ export function LlmProviderCard({
                   ?
                 </p>
               ) : (
-                <p className="text-memo-muted">Kein exakter Treffer in der OpenRouter-Modell-Liste.</p>
+                <p className="text-memo-muted">Kein exakter Treffer in unserer Empfehlungsliste.</p>
               )}
-              {openRouterMatch.suggestions.length > 0 && (
+              {!openRouterMatch.exact && openRouterMatch.suggestions.length > 0 && (
                 <ul className="mt-1.5 space-y-1">
                   {openRouterMatch.suggestions.map((id) => (
                     <li key={id}>

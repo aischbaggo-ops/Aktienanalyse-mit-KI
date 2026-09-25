@@ -207,6 +207,12 @@ export interface StockAnalysis {
   prognose: PrognoseData | null
   chart_data: ChartData | null
   data_source: string | null
+  error_message: string | null
+  // Bereinigte, fuer Endnutzer verstaendliche Fehlerursache (siehe
+  // analyse/index.ts, classifyErrorForUser()) - null, wenn der Fehler
+  // keiner bekannten Kategorie zugeordnet werden konnte oder status
+  // ungleich 'error' ist.
+  error_message_public: string | null
   created_at: string
   updated_at: string
   [key: string]: unknown

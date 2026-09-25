@@ -40,6 +40,31 @@ export function AnalysePage() {
     if (!ticker) return
     const currentTicker = ticker
     let cancelled = false
+    let pollTimer: ReturnType<typeof setInterval> | null = null
+
+    function stopPolling() {
+      if (pollTimer) {
+        clearInterval(pollTimer)
+        pollTimer = null
+      }
+    }
+
+    // Der Realtime-Kanal unten kann bei langlebigen Tabs still sterben
+    // (Laptop-Sleep, Tab lange im Hintergrund/gedrosselt, Netzwerk-Hänger),
+    // ohne dass der Client das merkt - der Nutzer sähe den "läuft"-Spinner
+    // dann unbegrenzt weiter, obwohl der Lauf längst fertig ist (reales
+    // Nutzerfeedback: NVDA-Analyse zeigte "läuft" ~30 Min., obwohl sie laut
+    // Log nach ~2s fehlgeschlagen war). Deshalb zusätzlich ein Polling-
+    // Fallback, solange der Status noch pending/running ist - unabhängig
+    // vom WebSocket, stoppt sich selbst, sobald ein Endstatus bekannt ist.
+    function startPollingIfNeeded(row: StockAnalysis | null) {
+      const pending = !row || row.status === 'pending' || row.status === 'running'
+      if (pending) {
+        if (!pollTimer) pollTimer = setInterval(load, 5000)
+      } else {
+        stopPolling()
+      }
+    }
 
     async function load() {
       setLoading(true)
@@ -48,10 +73,10 @@ export function AnalysePage() {
         .select('*')
         .eq('ticker', currentTicker)
         .maybeSingle()
-      if (!cancelled) {
-        setAnalysis(data)
-        setLoading(false)
-      }
+      if (cancelled) return
+      setAnalysis(data)
+      setLoading(false)
+      startPollingIfNeeded(data)
     }
     load()
 
@@ -66,14 +91,28 @@ export function AnalysePage() {
           filter: `ticker=eq.${currentTicker}`,
         },
         (payload) => {
-          if (!cancelled) setAnalysis(payload.new as StockAnalysis)
+          if (cancelled) return
+          const row = payload.new as StockAnalysis
+          setAnalysis(row)
+          startPollingIfNeeded(row)
         }
       )
       .subscribe()
 
+    // Zusaetzliches Sicherheitsnetz: kommt der Tab nach langer Inaktivität
+    // wieder in den Vordergrund, sofort den echten Stand nachladen, statt
+    // auf den naechsten Poll-Tick zu warten (Timer werden von Browsern im
+    // Hintergrund ebenfalls gedrosselt/pausiert, nicht nur der WebSocket).
+    function handleVisibility() {
+      if (!cancelled && document.visibilityState === 'visible') load()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
     return () => {
       cancelled = true
       supabase.removeChannel(channel)
+      stopPolling()
+      document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [ticker])
 
@@ -184,7 +223,9 @@ export function AnalysePage() {
   if (analysis.status === 'error') {
     return (
       <div className="rounded-xl border border-ampel-red/40 bg-ampel-red/10 p-6 text-sm text-ampel-red">
-        Bei der Analyse von {ticker} ist ein Fehler aufgetreten. Bitte versuche es erneut.
+        {analysis.error_message_public
+          ? `Fehler: ${analysis.error_message_public}`
+          : `Bei der Analyse von ${ticker} ist ein Fehler aufgetreten. Bitte versuche es erneut.`}
       </div>
     )
   }
