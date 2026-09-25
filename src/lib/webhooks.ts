@@ -20,6 +20,7 @@ const INDEX_CONSTITUENTS_WEBHOOK_URL = `${FUNCTIONS_BASE_URL}/index-constituents
 const INDEX_WEIGHT_WEBHOOK_URL = `${FUNCTIONS_BASE_URL}/index-weight`
 const APPROVE_ACCESS_REQUEST_WEBHOOK_URL = `${FUNCTIONS_BASE_URL}/approve-access-request`
 const LOG_EVENT_WEBHOOK_URL = `${FUNCTIONS_BASE_URL}/log-event`
+const VALIDATE_TICKERS_WEBHOOK_URL = `${FUNCTIONS_BASE_URL}/validate-tickers`
 
 export interface AdminUserRow {
   id: string
@@ -317,4 +318,26 @@ export function logEvent(eventType: string, status: LogEventStatus, details?: Re
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ event_type: eventType, status, details }),
   }).catch(() => {})
+}
+
+// Prueft Ticker-KANDIDATEN (z.B. aus dem Freitext-Parser, siehe
+// tickerParser.ts) gegen echte FMP-Profildaten, bevor sie in einen
+// Batch-Lauf uebernommen werden - siehe BatchSelectionPanel.tsx. Wirft bei
+// einem echten Fehler (z.B. fehlender FMP-Key) - der Aufrufer entscheidet
+// dann selbst, ob er dem Nutzer die Meldung zeigt oder ungeprueft
+// fortfaehrt.
+export async function validateTickers(tickers: string[], accessToken: string): Promise<string[]> {
+  const res = await fetch(VALIDATE_TICKERS_WEBHOOK_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ tickers }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || data.error) {
+    throw new Error(data.error ?? `Ticker-Prüfung fehlgeschlagen (${res.status})`)
+  }
+  return Array.isArray(data.valid) ? data.valid : []
 }
