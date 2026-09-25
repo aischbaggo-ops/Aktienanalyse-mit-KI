@@ -33,7 +33,10 @@ export function IndexSelectionPanel({
   const [error, setError] = useState<string | null>(null)
 
   async function handleLoad() {
-    if (!accessToken) return
+    if (!accessToken) {
+      setError('Nicht angemeldet - bitte Seite neu laden.')
+      return
+    }
     setLoading(true)
     setError(null)
     setLoaded(null)
@@ -101,13 +104,17 @@ export function IndexSelectionPanel({
         <button
           type="button"
           onClick={handleLoad}
-          disabled={disabled || loading || !accessToken}
+          disabled={disabled || loading}
+          title={disabled ? 'Ein anderer Batch-Lauf ist gerade aktiv.' : undefined}
           className="rounded-lg border border-memo-line px-4 py-2 text-sm font-medium text-memo-ink transition-colors hover:border-memo-ink disabled:opacity-50"
         >
           {loading ? 'Lädt...' : 'Mitglieder laden'}
         </button>
       </div>
 
+      {disabled && (
+        <p className="mt-2 text-xs text-memo-muted">Ein anderer Batch-Lauf ist gerade aktiv - bitte warten oder abbrechen.</p>
+      )}
       {note && <p className="mt-3 text-sm text-memo-muted">{note}</p>}
 
       {loaded && loaded.length > 0 && (

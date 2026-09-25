@@ -59,22 +59,35 @@ export function useBatchAnalysis(accessToken: string | undefined, onFinished?: (
     setPhase('confirming')
     setEstimating(true)
 
-    const cutoff = new Date(Date.now() - CACHE_MAX_AGE_DAYS * 24 * 60 * 60 * 1000).toISOString()
-    // Kostendurchschnitt kommt aus einer RPC statt einer Direktabfrage auf
-    // stock_analyses_costs - die Tabelle selbst ist admin-only (Pentest-Fix,
-    // siehe Migration 20260924120000), die RPC liefert bewusst nur den
-    // aggregierten Mittelwert, nie einzelne Zeilen/Kosten.
-    const [cacheRes, costRpc] = await Promise.all([
-      options.forceRefresh
-        ? Promise.resolve({ data: [] as { ticker: string }[] })
-        : supabase.from('stock_analyses').select('ticker').in('ticker', list).eq('status', 'done').gte('updated_at', cutoff),
-      supabase.rpc('get_avg_recent_analysis_cost'),
-    ])
-    const avgCost = typeof costRpc.data === 'number' ? costRpc.data : null
+    // Ohne try/catch wuerde eine echte Netzwerk-Exception (nicht nur ein
+    // {error}-Feld, sondern ein tatsaechlich verworfenes Promise) hier
+    // ungefangen durchschlagen - phase bliebe dauerhaft auf "confirming"
+    // haengen (oben schon gesetzt, nie zurueckgesetzt), und JEDER
+    // Batch-Button (Index- UND Freitext-Auswahl) waere ab dann fuer den
+    // Rest der Session ohne jede erkennbare Ursache deaktiviert. Genau das
+    // Symptom aus dem Nutzertest ("Mitglieder laden tut nichts").
+    try {
+      const cutoff = new Date(Date.now() - CACHE_MAX_AGE_DAYS * 24 * 60 * 60 * 1000).toISOString()
+      // Kostendurchschnitt kommt aus einer RPC statt einer Direktabfrage auf
+      // stock_analyses_costs - die Tabelle selbst ist admin-only (Pentest-Fix,
+      // siehe Migration 20260924120000), die RPC liefert bewusst nur den
+      // aggregierten Mittelwert, nie einzelne Zeilen/Kosten.
+      const [cacheRes, costRpc] = await Promise.all([
+        options.forceRefresh
+          ? Promise.resolve({ data: [] as { ticker: string }[] })
+          : supabase.from('stock_analyses').select('ticker').in('ticker', list).eq('status', 'done').gte('updated_at', cutoff),
+        supabase.rpc('get_avg_recent_analysis_cost'),
+      ])
+      const avgCost = typeof costRpc.data === 'number' ? costRpc.data : null
 
-    setEstimate(estimateBatch(list.length, cacheRes.data?.length ?? 0, avgCost))
-    setEstimating(false)
-    return null
+      setEstimate(estimateBatch(list.length, cacheRes.data?.length ?? 0, avgCost))
+      setEstimating(false)
+      return null
+    } catch (err) {
+      setPhase('idle')
+      setEstimating(false)
+      return err instanceof Error ? err.message : 'Kostenschätzung fehlgeschlagen.'
+    }
   }, [])
 
   const reset = useCallback(() => {
@@ -136,32 +149,38 @@ export function useBatchAnalysis(accessToken: string | undefined, onFinished?: (
       }
     }
 
-    // Scores/Namen fuer die Ergebnisliste nachladen.
-    const okTickers = collected.filter((r) => r.success).map((r) => r.ticker)
-    if (okTickers.length > 0) {
-      const { data } = await supabase
-        .from('stock_analyses')
-        .select('id, ticker, company_name, score_total, chart_data')
-        .in('ticker', okTickers)
-      const byTicker = new Map((data ?? []).map((row) => [row.ticker as string, row]))
-      setResults(
-        collected.map((r) => {
-          const row = byTicker.get(r.ticker)
-          if (!row) return r
-          const meta = (row.chart_data as { profileMeta?: { image?: string | null } } | null)?.profileMeta
-          return {
-            ...r,
-            name: row.company_name as string | null,
-            score: row.score_total as number | null,
-            analysisId: row.id as string,
-            image: meta?.image ?? null,
-          }
-        }),
-      )
+    // Scores/Namen fuer die Ergebnisliste nachladen - in try/finally, damit
+    // eine Netzwerk-Exception hier (selten, aber moeglich) NICHT verhindert,
+    // dass phase auf "done" gesetzt wird. Sonst bliebe die UI nach einem
+    // erfolgreich durchgelaufenen Batch trotzdem auf "running" haengen -
+    // gleiche Klasse von stuck-state-Bug wie in prepare() oben.
+    try {
+      const okTickers = collected.filter((r) => r.success).map((r) => r.ticker)
+      if (okTickers.length > 0) {
+        const { data } = await supabase
+          .from('stock_analyses')
+          .select('id, ticker, company_name, score_total, chart_data')
+          .in('ticker', okTickers)
+        const byTicker = new Map((data ?? []).map((row) => [row.ticker as string, row]))
+        setResults(
+          collected.map((r) => {
+            const row = byTicker.get(r.ticker)
+            if (!row) return r
+            const meta = (row.chart_data as { profileMeta?: { image?: string | null } } | null)?.profileMeta
+            return {
+              ...r,
+              name: row.company_name as string | null,
+              score: row.score_total as number | null,
+              analysisId: row.id as string,
+              image: meta?.image ?? null,
+            }
+          }),
+        )
+      }
+    } finally {
+      setPhase('done')
+      onFinishedRef.current?.()
     }
-
-    setPhase('done')
-    onFinishedRef.current?.()
   }, [accessToken, tickers, forceRefresh])
 
   const cancel = useCallback(() => {

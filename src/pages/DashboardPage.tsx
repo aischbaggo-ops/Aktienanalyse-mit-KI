@@ -160,7 +160,11 @@ export function DashboardPage() {
   }
 
   async function handleAnalyse() {
-    if (!selected || !user || !session?.access_token) return
+    if (!selected) {
+      setAnalyseError('Bitte zuerst einen Ticker auswählen.')
+      return
+    }
+    if (!user || !session?.access_token) return
     setAnalysing(true)
     setAnalyseError(null)
     try {
@@ -231,7 +235,7 @@ export function DashboardPage() {
           </select>
           <button
             onClick={handleAnalyse}
-            disabled={!selected || analysing}
+            disabled={analysing}
             className="rounded-lg bg-memo-ink px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {analysing ? 'Analysiere...' : 'Analysieren'}
@@ -256,6 +260,7 @@ export function DashboardPage() {
           />
           <BatchSelectionPanel
             disabled={batch.phase !== 'idle'}
+            accessToken={session?.access_token}
             onStart={(list) => batch.prepare(list, { forceRefresh: false })}
           />
         </div>
