@@ -312,6 +312,10 @@ export interface AdminChatResponse {
   tokens_output: number
   web_search_count: number
   cost_usd: number
+  // Bugfix 2026-09-28: erlaubt, einen durch max_tokens abgeschnittenen
+  // (leeren) Content im Frontend klar von einer echten leeren Antwort zu
+  // unterscheiden - siehe AdminChatPage.tsx.
+  stop_reason: string | null
 }
 
 export async function sendAdminChatMessage(
