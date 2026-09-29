@@ -23,6 +23,17 @@ function extractText(blocks: AdminChatContentBlock[]): string {
     .join('')
 }
 
+// Bugfix 2026-09-28: ohne diese Unterscheidung sah ein durch max_tokens
+// abgeschnittener Content (Text noch gar nicht begonnen) im UI identisch
+// aus wie eine echte leere Antwort - beides nur "(keine Textantwort
+// erhalten)". stop_reason kommt jetzt vom Backend mit, siehe webhooks.ts.
+function fallbackTextFor(stopReason: string | null): string {
+  if (stopReason === 'max_tokens') {
+    return 'Antwort wurde wegen Längenlimit abgeschnitten. Bitte die Aufgabe in kleinere Schritte aufteilen oder präziser formulieren.'
+  }
+  return '(keine Textantwort erhalten)'
+}
+
 function buildPayload(turns: ChatTurn[]): AdminChatMessage[] {
   return turns.map((t) =>
     t.role === 'assistant' && t.blocks ? { role: 'assistant', content: t.blocks } : { role: 'user', content: t.displayText }
@@ -84,7 +95,7 @@ export function AdminChatPage() {
 
     try {
       const res = await sendAdminChatMessage(buildPayload(nextTurns), session.access_token)
-      const displayText = extractText(res.content) || '(keine Textantwort erhalten)'
+      const displayText = extractText(res.content) || fallbackTextFor(res.stop_reason)
       setTurns([
         ...nextTurns,
         { role: 'assistant', displayText, blocks: res.content, webSearchCount: res.web_search_count },
