@@ -420,7 +420,7 @@ export function AdminPage() {
         {failedRequests.length === 0 ? (
           <p className="text-sm text-memo-muted">Keine Fehlschläge protokolliert.</p>
         ) : (
-          <div className="max-h-80 overflow-auto">
+          <div className="max-h-[27.5rem] overflow-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-memo-paper">
                 <tr className="border-b border-memo-line2 text-left text-xs uppercase tracking-wide text-memo-muted">
@@ -470,7 +470,7 @@ export function AdminPage() {
         {functionErrors.length === 0 ? (
           <p className="text-sm text-memo-muted">Keine sonstigen Fehler protokolliert.</p>
         ) : (
-          <div className="max-h-80 overflow-auto">
+          <div className="max-h-[27.5rem] overflow-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-memo-paper">
                 <tr className="border-b border-memo-line2 text-left text-xs uppercase tracking-wide text-memo-muted">
@@ -567,7 +567,7 @@ export function AdminPage() {
         {events.length === 0 ? (
           <p className="text-sm text-memo-muted">Keine Ereignisse protokolliert.</p>
         ) : (
-          <div className="max-h-80 overflow-auto">
+          <div className="max-h-[27.5rem] overflow-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-memo-paper">
                 <tr className="border-b border-memo-line2 text-left text-xs uppercase tracking-wide text-memo-muted">
@@ -624,7 +624,7 @@ export function AdminPage() {
           {dataGapRequests.length === 0 ? (
             <p className="text-sm text-memo-muted">Keine Datenlücken protokolliert.</p>
           ) : (
-            <div className="max-h-80 overflow-auto">
+            <div className="max-h-[27.5rem] overflow-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-memo-paper">
                   <tr className="border-b border-memo-line2 text-left text-xs uppercase tracking-wide text-memo-muted">
@@ -674,7 +674,7 @@ export function AdminPage() {
         {requests.length === 0 ? (
           <p className="text-sm text-memo-muted">Noch keine Anfragen protokolliert.</p>
         ) : (
-          <div className="max-h-80 overflow-auto">
+          <div className="max-h-[27.5rem] overflow-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-memo-paper">
                 <tr className="border-b border-memo-line2 text-left text-xs uppercase tracking-wide text-memo-muted">
