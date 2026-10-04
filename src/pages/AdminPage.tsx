@@ -420,9 +420,9 @@ export function AdminPage() {
         {failedRequests.length === 0 ? (
           <p className="text-sm text-memo-muted">Keine Fehlschläge protokolliert.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="max-h-80 overflow-auto">
             <table className="w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 bg-memo-paper">
                 <tr className="border-b border-memo-line2 text-left text-xs uppercase tracking-wide text-memo-muted">
                   <th className="py-2 pr-4 font-medium">Ticker</th>
                   <th className="py-2 pr-4 font-medium">Zeitpunkt</th>
@@ -441,7 +441,7 @@ export function AdminPage() {
                     <td className="whitespace-nowrap py-2.5 pr-4 align-top text-memo-muted">
                       {r.user_id ? r.user_id.slice(0, 8) : 'Anonym'}
                     </td>
-                    <td className="py-2.5 pr-4 align-top text-memo-minusText">
+                    <td className="py-2.5 pr-4 align-top break-words text-memo-minusText">
                       {r.error_message ?? '–'}
                     </td>
                     <td className="whitespace-nowrap py-2.5 align-top">
@@ -470,9 +470,9 @@ export function AdminPage() {
         {functionErrors.length === 0 ? (
           <p className="text-sm text-memo-muted">Keine sonstigen Fehler protokolliert.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="max-h-80 overflow-auto">
             <table className="w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 bg-memo-paper">
                 <tr className="border-b border-memo-line2 text-left text-xs uppercase tracking-wide text-memo-muted">
                   <th className="py-2 pr-4 font-medium">Function</th>
                   <th className="py-2 pr-4 font-medium">Zeitpunkt</th>
@@ -491,7 +491,7 @@ export function AdminPage() {
                     <td className="whitespace-nowrap py-2.5 pr-4 align-top text-memo-muted">
                       {r.user_id ? r.user_id.slice(0, 8) : '–'}
                     </td>
-                    <td className="py-2.5 pr-4 align-top text-memo-minusText">{r.error_message}</td>
+                    <td className="py-2.5 pr-4 align-top break-words text-memo-minusText">{r.error_message}</td>
                     <td className="whitespace-nowrap py-2.5 align-top">
                       <button
                         onClick={() => copyFunctionError(r, idx)}
@@ -567,9 +567,9 @@ export function AdminPage() {
         {events.length === 0 ? (
           <p className="text-sm text-memo-muted">Keine Ereignisse protokolliert.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="max-h-80 overflow-auto">
             <table className="w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 bg-memo-paper">
                 <tr className="border-b border-memo-line2 text-left text-xs uppercase tracking-wide text-memo-muted">
                   <th className="py-2 pr-4 font-medium">Ereignis</th>
                   <th className="py-2 pr-4 font-medium">Status</th>
@@ -597,7 +597,7 @@ export function AdminPage() {
                     <td className="whitespace-nowrap py-2.5 pr-4 align-top text-memo-muted">
                       {new Date(ev.created_at).toLocaleString('de-DE')}
                     </td>
-                    <td className="py-2.5 align-top text-memo-muted">
+                    <td className="py-2.5 align-top break-words text-memo-muted">
                       {ev.details ? JSON.stringify(ev.details) : '–'}
                     </td>
                   </tr>
@@ -624,9 +624,9 @@ export function AdminPage() {
           {dataGapRequests.length === 0 ? (
             <p className="text-sm text-memo-muted">Keine Datenlücken protokolliert.</p>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="max-h-80 overflow-auto">
               <table className="w-full text-sm">
-                <thead>
+                <thead className="sticky top-0 bg-memo-paper">
                   <tr className="border-b border-memo-line2 text-left text-xs uppercase tracking-wide text-memo-muted">
                     <th className="py-2 pr-4 font-medium">Ticker</th>
                     <th className="py-2 font-medium">Zeitpunkt</th>
@@ -674,9 +674,9 @@ export function AdminPage() {
         {requests.length === 0 ? (
           <p className="text-sm text-memo-muted">Noch keine Anfragen protokolliert.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="max-h-80 overflow-auto">
             <table className="w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 bg-memo-paper">
                 <tr className="border-b border-memo-line2 text-left text-xs uppercase tracking-wide text-memo-muted">
                   <th className="py-2 pr-4 font-medium">Ticker</th>
                   <th className="py-2 pr-4 font-medium">User</th>
