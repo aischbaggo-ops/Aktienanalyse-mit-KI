@@ -3,6 +3,7 @@ import { fmtMoney, dash } from '../../lib/memoFormat'
 import { CorridorChart, ProbabilityBar } from '../../components/memo/Charts'
 import { InfoTooltip } from '../../components/InfoTooltip'
 import type { GlossaryTerm } from '../../lib/glossary'
+import { PROGNOSE_MULTIPLES_NOTE } from '../../lib/dataFlags'
 
 function directionArrow(action: string): string {
   if (action === 'upgrade') return '↑'
@@ -65,6 +66,7 @@ export function KiEinschaetzungTab({ analysis }: { analysis: StockAnalysis }) {
                 />
               </div>
             )}
+            <p className="mt-3 text-xs leading-relaxed text-memo-muted">{PROGNOSE_MULTIPLES_NOTE}</p>
           </>
         ) : (
           <p className="py-8 text-center text-sm text-memo-grau">

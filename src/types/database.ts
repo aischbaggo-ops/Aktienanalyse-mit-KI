@@ -169,6 +169,17 @@ export interface ProfileMeta {
   description: string | null
 }
 
+// Datenlage eines Analyse-Laufs (chart_data.data_flags), nur bei Laeufen nach
+// dem zugehoerigen Backend-Deploy vorhanden.
+export interface DataFlags {
+  news_status?: 'ok' | 'blocked' | 'error' | 'empty'
+  news_count?: number
+  price_points?: number
+  estimates_count?: number
+  reported_currency?: string | null
+  benchmark_symbol?: string
+}
+
 export interface ChartData {
   krise?: KrisenFenster[]
   trend?: { wCagrStock: number | null; wCagrIndex: number | null; wVola: number | null }
@@ -183,6 +194,7 @@ export interface ChartData {
   analystConsensus?: AnalystConsensus | null
   bankRatings?: BankRating[]
   profileMeta?: ProfileMeta
+  data_flags?: DataFlags
   [key: string]: unknown
 }
 
