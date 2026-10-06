@@ -398,7 +398,12 @@ export function buildAnalysisPdf(analysis: StockAnalysis): jsPDF {
   const swot = analysis.chart_data?.swot
   const noGoHart = analysis.chart_data?.no_go_hart === true
   const qualitaetKriterien = (analysis.criteria ?? []).filter((c) => c.dimension === 'Qualitaet')
-  const KO_NAMES = ['Keine Skandale', 'Keine schweren Vorwuerfe gegen Unternehmen', 'Keine schweren Vorwuerfe gegen Management']
+  const KO_NAMES = [
+    'Geschaeftsmodell verstanden',
+    'Keine Skandale',
+    'Keine schweren Vorwuerfe gegen Unternehmen',
+    'Keine schweren Vorwuerfe gegen Management',
+  ]
   const koVerletzt = qualitaetKriterien.filter((c) => KO_NAMES.includes(c.name) && c.ampel === 'rot')
 
   sectionLabel('SWOT — Stärken')
