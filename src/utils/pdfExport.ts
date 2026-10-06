@@ -2,6 +2,7 @@ import { jsPDF, GState } from 'jspdf'
 import { MEMO_PLUS, MEMO_MINUS, MEMO_GRAU } from '../lib/memoColors.js'
 import { fmtMoney, fmtCompact, fmtPct, dash, formatMarketCap } from '../lib/memoFormat'
 import { scoreLabel } from '../lib/score'
+import { PROGNOSE_MULTIPLES_NOTE } from '../lib/dataFlags'
 import type { CriterionEntry, StockAnalysis, WarningEntry } from '../types/database'
 
 type RGB = [number, number, number]
@@ -564,6 +565,7 @@ export function buildAnalysisPdf(analysis: StockAnalysis): jsPDF {
         serifValue: true,
       })
     })
+    bodyText(PROGNOSE_MULTIPLES_NOTE, { size: 8, color: GRAU })
   } else {
     bodyText(prognose?.hinweis ?? 'Kein Erwartungskorridor berechenbar (fehlende Analysten-Schätzungen).', { color: GRAU })
   }

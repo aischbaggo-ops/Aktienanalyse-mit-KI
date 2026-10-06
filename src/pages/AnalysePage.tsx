@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { generateAnalysisPdf } from '../utils/pdfExport'
 import { scoreLabel, scoreLabelColorClass, scoreBandHex, scoreBandFill } from '../lib/score'
 import { formatMarketCap } from '../lib/memoFormat'
+import { koWithoutNewsHint } from '../lib/dataFlags'
 import { getIndexWeighting, type IndexWeighting } from '../lib/webhooks'
 import { InfoTooltip } from '../components/InfoTooltip'
 import type { GlossaryTerm } from '../lib/glossary'
@@ -233,6 +234,7 @@ export function AnalysePage() {
   const warnings = normalizeWarnings(analysis.warnings)
   const score = analysis.score_total
   const meta = analysis.chart_data?.profileMeta
+  const newsHint = koWithoutNewsHint(analysis)
   const marketCapText = formatMarketCap(meta?.marketCap, analysis.currency)
   const hasMetaRow = Boolean(marketCapText || meta?.industry || meta?.exchange || indexWeightings.length > 0)
 
@@ -331,6 +333,12 @@ export function AnalysePage() {
           </div>
         </div>
       </div>
+
+      {newsHint && (
+        <p role="note" className="border-l-2 border-memo-line pl-3 text-xs text-memo-muted">
+          {newsHint}
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-2">
