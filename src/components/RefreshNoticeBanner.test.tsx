@@ -33,6 +33,7 @@ function analysis(overrides: Partial<StockAnalysis>): StockAnalysis {
     error_message_public: null,
     last_run_status: 'done',
     last_run_error_public: null,
+    last_run_error_code: null,
     last_run_at: '2026-10-05T07:59:30.000Z',
     created_at: '',
     updated_at: ANALYSIS_DATE,

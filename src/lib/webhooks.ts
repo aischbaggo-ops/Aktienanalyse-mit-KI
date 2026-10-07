@@ -201,6 +201,16 @@ export interface AnalyseResponse {
   [key: string]: unknown
 }
 
+// Fehler der analyse-Function mit HTTP-Status und optionalem code
+// ('already_running' bei 409, 'rate_limit' bei 429), damit der Batch
+// gezielt reagieren kann. message bleibt die Meldung fuer die Anzeige.
+export class AnalyseHttpError extends Error {
+  constructor(message: string, public status: number, public code?: string) {
+    super(message)
+    this.name = 'AnalyseHttpError'
+  }
+}
+
 export async function requestAnalyse(payload: AnalyseRequestPayload, accessToken: string): Promise<AnalyseResponse> {
   const res = await fetch(ANALYSE_WEBHOOK_URL, {
     method: 'POST',
@@ -212,7 +222,7 @@ export async function requestAnalyse(payload: AnalyseRequestPayload, accessToken
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new Error(data.error ?? `Analyse-Anfrage fehlgeschlagen (${res.status})`)
+    throw new AnalyseHttpError(data.error ?? `Analyse-Anfrage fehlgeschlagen (${res.status})`, res.status, data.code)
   }
   return data
 }
