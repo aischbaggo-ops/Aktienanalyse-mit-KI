@@ -234,6 +234,9 @@ export interface StockAnalysis {
   // admin-only Tabelle stock_analyses_last_run_error.
   last_run_status: LastRunStatus | null
   last_run_error_public: string | null
+  // Maschinenlesbarer Grund des letzten Fehlschlags (Migration
+  // 20261007110000), z. B. 'fmp_rate_limit', 'fmp_plan', 'score_incomplete'.
+  last_run_error_code: string | null
   last_run_at: string | null
   created_at: string
   // Datum der gespeicherten Analyse: bleibt bei laufendem oder

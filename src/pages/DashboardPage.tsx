@@ -129,7 +129,7 @@ export function DashboardPage() {
   // ueber denselben Mechanismus wie der "Abbrechen"-Button gestoppt -
   // laufende Einzelanalyse laeuft zu Ende, keine weiteren werden gestartet.
   function navigateToAnalyse(ticker: string) {
-    if (batch.phase === 'running') {
+    if (batch.phase === 'running' || batch.phase === 'paused') {
       const proceed = window.confirm(
         `Ein Batch-Lauf ist noch aktiv (${batch.results.length} von ${batch.tickers.length}). Seite trotzdem verlassen? Die restliche Warteschlange wird dann abgebrochen.`
       )
