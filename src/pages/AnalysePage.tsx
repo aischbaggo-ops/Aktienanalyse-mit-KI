@@ -6,6 +6,8 @@ import { generateAnalysisPdf } from '../utils/pdfExport'
 import { scoreLabel, scoreLabelColorClass, scoreBandHex, scoreBandFill } from '../lib/score'
 import { formatMarketCap } from '../lib/memoFormat'
 import { koWithoutNewsHint } from '../lib/dataFlags'
+import { formatAnalysisDate, needsPolling } from '../lib/analysisRun'
+import { RefreshNoticeBanner } from '../components/RefreshNoticeBanner'
 import { getIndexWeighting, type IndexWeighting } from '../lib/webhooks'
 import { InfoTooltip } from '../components/InfoTooltip'
 import type { GlossaryTerm } from '../lib/glossary'
@@ -56,11 +58,11 @@ export function AnalysePage() {
     // dann unbegrenzt weiter, obwohl der Lauf längst fertig ist (reales
     // Nutzerfeedback: NVDA-Analyse zeigte "läuft" ~30 Min., obwohl sie laut
     // Log nach ~2s fehlgeschlagen war). Deshalb zusätzlich ein Polling-
-    // Fallback, solange der Status noch pending/running ist - unabhängig
-    // vom WebSocket, stoppt sich selbst, sobald ein Endstatus bekannt ist.
+    // Fallback, solange der Status noch pending/running ist oder ein Refresh
+    // läuft (last_run_status) - unabhängig vom WebSocket, stoppt sich selbst,
+    // sobald ein Endstatus bekannt ist.
     function startPollingIfNeeded(row: StockAnalysis | null) {
-      const pending = !row || row.status === 'pending' || row.status === 'running'
-      if (pending) {
+      if (needsPolling(row)) {
         if (!pollTimer) pollTimer = setInterval(load, 5000)
       } else {
         stopPolling()
@@ -240,6 +242,8 @@ export function AnalysePage() {
 
   return (
     <div className="space-y-6 rounded-xl border border-memo-line bg-memo-paper p-6 shadow-card sm:p-8">
+      <RefreshNoticeBanner analysis={analysis} />
+
       {/* Kopf */}
       <div className="space-y-4 border-b border-memo-line2 pb-5">
         <div className="flex flex-wrap items-center gap-10">
@@ -361,7 +365,7 @@ export function AnalysePage() {
           </button>
         </div>
         <span className="text-xs text-memo-muted">
-          Aktualisiert: {new Date(analysis.updated_at).toLocaleString('de-DE')}
+          Aktualisiert: {formatAnalysisDate(analysis.updated_at)}
         </span>
       </div>
 

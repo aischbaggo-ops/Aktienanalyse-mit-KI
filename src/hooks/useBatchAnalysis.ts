@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { requestAnalyse } from '../lib/webhooks'
 import { estimateBatch, MAX_BATCH_SIZE, type BatchEstimate } from '../utils/batchEstimate'
+import { batchRunOutcome, KEPT_OLD_ANALYSIS_MESSAGE } from '../lib/analysisRun'
 
 export type BatchPhase = 'idle' | 'confirming' | 'running' | 'done'
 
@@ -9,6 +10,8 @@ export interface BatchResult {
   ticker: string
   success: boolean
   cached?: boolean
+  // Lauf gescheitert, die vorherige gueltige Analyse bleibt bestehen.
+  keptOld?: boolean
   error?: string
   // Nach Abschluss aus stock_analyses nachgeladen (nur bei success).
   name?: string | null
@@ -72,10 +75,19 @@ export function useBatchAnalysis(accessToken: string | undefined, onFinished?: (
       // stock_analyses_costs - die Tabelle selbst ist admin-only (Pentest-Fix,
       // siehe Migration 20260924120000), die RPC liefert bewusst nur den
       // aggregierten Mittelwert, nie einzelne Zeilen/Kosten.
+      // Cache-Regel wie im Backend (isCacheFresh): status 'done' UND
+      // Gesamtscore vorhanden UND juenger als 7 Tage (updated_at = Datum der
+      // gespeicherten Analyse).
       const [cacheRes, costRpc] = await Promise.all([
         options.forceRefresh
           ? Promise.resolve({ data: [] as { ticker: string }[] })
-          : supabase.from('stock_analyses').select('ticker').in('ticker', list).eq('status', 'done').gte('updated_at', cutoff),
+          : supabase
+              .from('stock_analyses')
+              .select('ticker')
+              .in('ticker', list)
+              .eq('status', 'done')
+              .not('score_total', 'is', null)
+              .gte('updated_at', cutoff),
         supabase.rpc('get_avg_recent_analysis_cost'),
       ])
       const avgCost = typeof costRpc.data === 'number' ? costRpc.data : null
@@ -97,14 +109,23 @@ export function useBatchAnalysis(accessToken: string | undefined, onFinished?: (
     setEstimate(null)
   }, [])
 
-  // Wartet auf den tatsaechlichen Abschluss (Polling auf status), da
-  // requestAnalyse() sofort zurueckkehrt.
-  async function waitForAnalysisDone(ticker: string, timeoutMs = 90_000): Promise<'done' | 'error' | 'timeout'> {
+  // Wartet auf den tatsaechlichen Abschluss, da requestAnalyse() sofort
+  // zurueckkehrt. Fertig ist der Lauf, sobald last_run_status nicht mehr
+  // 'running' ist - status bleibt bei einer gueltigen alten Analyse 'done'
+  // und taugt deshalb nicht als Signal (siehe batchRunOutcome).
+  async function waitForAnalysisDone(
+    ticker: string,
+    timeoutMs = 90_000,
+  ): Promise<'done' | 'error' | 'error_kept' | 'timeout'> {
     const start = Date.now()
     while (Date.now() - start < timeoutMs) {
-      const { data } = await supabase.from('stock_analyses').select('status').eq('ticker', ticker).maybeSingle()
-      if (data?.status === 'done') return 'done'
-      if (data?.status === 'error') return 'error'
+      const { data } = await supabase
+        .from('stock_analyses')
+        .select('status, score_total, last_run_status')
+        .eq('ticker', ticker)
+        .maybeSingle()
+      const outcome = batchRunOutcome(data)
+      if (outcome !== 'pending') return outcome
       await sleep(2500)
     }
     return 'timeout'
@@ -142,6 +163,7 @@ export function useBatchAnalysis(accessToken: string | undefined, onFinished?: (
         }
         const outcome = await waitForAnalysisDone(ticker)
         if (outcome === 'done') push({ ticker, success: true })
+        else if (outcome === 'error_kept') push({ ticker, success: false, keptOld: true, error: KEPT_OLD_ANALYSIS_MESSAGE })
         else if (outcome === 'error') push({ ticker, success: false, error: 'Analyse fehlgeschlagen' })
         else push({ ticker, success: false, error: 'Zeitüberschreitung beim Warten auf Ergebnis' })
       } catch (err) {

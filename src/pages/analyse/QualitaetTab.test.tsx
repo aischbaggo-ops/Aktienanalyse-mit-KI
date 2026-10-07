@@ -28,6 +28,9 @@ function analysis(criteria: CriterionEntry[]): StockAnalysis {
     data_source: null,
     error_message: null,
     error_message_public: null,
+    last_run_status: null,
+    last_run_error_public: null,
+    last_run_at: null,
     created_at: '',
     updated_at: '',
   }
