@@ -8,10 +8,10 @@ import { KEPT_OLD_ANALYSIS_MESSAGE, type BatchRunOutcome } from './analysisRun'
 // auch die dritte Wiederholung, wird der Ticker uebersprungen.
 export const BACKOFF_MS = [60_000, 120_000, 300_000] as const
 
-// Eigenes Limit der analyse-Function: 120 neue Analysen pro Kalenderstunde
+// Eigenes Limit der analyse-Function: 150 neue Analysen pro Kalenderstunde
 // und Nutzer (MAX_ANALYSES_PER_HOUR, analyse/index.ts; Zaehler
-// check_user_rate_limit, Migration 20260928092000). 3600 s / 120 = 30 s
-// Abstand zwischen zwei Starts haelt das Limit sicher ein.
+// check_user_rate_limit, Migration 20260928092000). 30 s Abstand zwischen
+// zwei Starts (= 120 pro Stunde) bleibt sicher darunter.
 export const DEFAULT_INTERVAL_SECONDS = 30
 
 // Fehlercodes (stock_analyses.last_run_error_code), bei denen sich Warten lohnt.
