@@ -1,4 +1,8 @@
 export type AnalysisStatus = 'pending' | 'running' | 'done' | 'error'
+// Zustand des letzten Analyse-Laufs, getrennt vom Zustand der gespeicherten
+// Analyse (status). Bei einer gueltigen Analyse bleibt status 'done', auch
+// waehrend eines Refreshs oder wenn er scheitert (Ticket f).
+export type LastRunStatus = 'running' | 'done' | 'error'
 export type Ampel = 'gruen' | 'gelb' | 'rot' | 'grau'
 
 export interface CriterionEntry {
@@ -225,7 +229,15 @@ export interface StockAnalysis {
   // keiner bekannten Kategorie zugeordnet werden konnte oder status
   // ungleich 'error' ist.
   error_message_public: string | null
+  // Letzter Lauf (Migration 20261007100000). null bei Zeilen, die seitdem
+  // nicht neu gerechnet wurden. Der interne Fehlertext liegt in der
+  // admin-only Tabelle stock_analyses_last_run_error.
+  last_run_status: LastRunStatus | null
+  last_run_error_public: string | null
+  last_run_at: string | null
   created_at: string
+  // Datum der gespeicherten Analyse: bleibt bei laufendem oder
+  // gescheitertem Refresh stehen.
   updated_at: string
   [key: string]: unknown
 }
