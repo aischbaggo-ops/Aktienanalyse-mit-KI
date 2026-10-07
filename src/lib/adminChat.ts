@@ -23,6 +23,28 @@ export interface AssistantDisplay {
   truncated: boolean
 }
 
+export const CONTEXT_TRUNCATED_NOTE = '[Antwort wegen Längenlimit abgeschnitten, unvollständig]'
+
+export interface ContextTurn {
+  role: 'user' | 'assistant'
+  displayText: string
+  truncated?: boolean
+}
+
+// Gesamter sichtbarer Verlauf als reiner Text (keine Roh-Bloecke) fuer
+// admin_chat_context. Ganzer Verlauf statt nur der letzten Antwort, weil bei
+// mehrstufiger Recherche fruehere Erkenntnisse sonst verloren gingen; das
+// Backend kuerzt auf die letzten 8000 Zeichen. Abgeschnittene Antworten tragen
+// einen Vermerk, damit die Analyse sie nicht als vollstaendig behandelt.
+export function buildContext(turns: ContextTurn[]): string {
+  return turns
+    .map((t) => {
+      const line = `${t.role === 'user' ? 'Admin' : 'Recherche'}: ${t.displayText}`
+      return t.role === 'assistant' && t.truncated ? `${line} ${CONTEXT_TRUNCATED_NOTE}` : line
+    })
+    .join('\n\n')
+}
+
 // Ein vorhandener Text wird immer angezeigt; bei max_tokens zusaetzlich mit
 // Hinweis, dass er unvollstaendig ist.
 export function describeAssistantResponse(blocks: AdminChatContentBlock[], stopReason: string | null): AssistantDisplay {

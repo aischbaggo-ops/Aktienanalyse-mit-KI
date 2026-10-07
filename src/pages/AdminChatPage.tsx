@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { requestAnalyse, sendAdminChatMessage } from '../lib/webhooks'
 import type { AdminChatContentBlock, AdminChatMessage } from '../lib/webhooks'
-import { describeAssistantResponse } from '../lib/adminChat'
+import { buildContext, describeAssistantResponse } from '../lib/adminChat'
 
 // Ein Turn im sichtbaren Verlauf. blocks ist nur bei role:'assistant'
 // gesetzt und haelt das ROHE Claude-content-Array (inkl. server_tool_use/
@@ -22,14 +22,6 @@ function buildPayload(turns: ChatTurn[]): AdminChatMessage[] {
   return turns.map((t) =>
     t.role === 'assistant' && t.blocks ? { role: 'assistant', content: t.blocks } : { role: 'user', content: t.displayText }
   )
-}
-
-// Gesamter sichtbarer Verlauf als reiner Text (keine Roh-Bloecke). Ganzer
-// Verlauf statt nur der letzten Antwort, weil bei mehrstufiger Recherche
-// fruehere Erkenntnisse sonst verloren gingen; das Backend kuerzt auf die
-// letzten 8000 Zeichen.
-function buildContext(turns: ChatTurn[]): string {
-  return turns.map((t) => `${t.role === 'user' ? 'Admin' : 'Recherche'}: ${t.displayText}`).join('\n\n')
 }
 
 export function AdminChatPage() {
