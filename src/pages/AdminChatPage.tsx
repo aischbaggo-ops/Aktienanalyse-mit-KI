@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { requestAnalyse, sendAdminChatMessage } from '../lib/webhooks'
 import type { AdminChatContentBlock, AdminChatMessage } from '../lib/webhooks'
+import { describeAssistantResponse } from '../lib/adminChat'
 
 // Ein Turn im sichtbaren Verlauf. blocks ist nur bei role:'assistant'
 // gesetzt und haelt das ROHE Claude-content-Array (inkl. server_tool_use/
@@ -14,24 +15,7 @@ interface ChatTurn {
   displayText: string
   blocks?: AdminChatContentBlock[]
   webSearchCount?: number
-}
-
-function extractText(blocks: AdminChatContentBlock[]): string {
-  return blocks
-    .filter((b) => b.type === 'text' && typeof b.text === 'string')
-    .map((b) => b.text)
-    .join('')
-}
-
-// Bugfix 2026-09-28: ohne diese Unterscheidung sah ein durch max_tokens
-// abgeschnittener Content (Text noch gar nicht begonnen) im UI identisch
-// aus wie eine echte leere Antwort - beides nur "(keine Textantwort
-// erhalten)". stop_reason kommt jetzt vom Backend mit, siehe webhooks.ts.
-function fallbackTextFor(stopReason: string | null): string {
-  if (stopReason === 'max_tokens') {
-    return 'Antwort wurde wegen Längenlimit abgeschnitten. Bitte die Aufgabe in kleinere Schritte aufteilen oder präziser formulieren.'
-  }
-  return '(keine Textantwort erhalten)'
+  truncated?: boolean
 }
 
 function buildPayload(turns: ChatTurn[]): AdminChatMessage[] {
@@ -95,10 +79,10 @@ export function AdminChatPage() {
 
     try {
       const res = await sendAdminChatMessage(buildPayload(nextTurns), session.access_token)
-      const displayText = extractText(res.content) || fallbackTextFor(res.stop_reason)
+      const { displayText, truncated } = describeAssistantResponse(res.content, res.stop_reason)
       setTurns([
         ...nextTurns,
-        { role: 'assistant', displayText, blocks: res.content, webSearchCount: res.web_search_count },
+        { role: 'assistant', displayText, truncated, blocks: res.content, webSearchCount: res.web_search_count },
       ])
       setTotalCostUsd((c) => c + res.cost_usd)
     } catch (err) {
@@ -139,6 +123,11 @@ export function AdminChatPage() {
                 {t.webSearchCount ? ` — ${t.webSearchCount} Websuche${t.webSearchCount === 1 ? '' : 'n'}` : ''}
               </p>
               <p className="mt-1 whitespace-pre-wrap text-sm text-memo-ink">{t.displayText}</p>
+              {t.truncated && (
+                <p className="mt-1 text-xs text-memo-minusText">
+                  Antwort wegen Längenlimit abgeschnitten, der Text oben ist unvollständig. Bitte in kleineren Schritten nachfragen.
+                </p>
+              )}
             </div>
           ))
         )}
