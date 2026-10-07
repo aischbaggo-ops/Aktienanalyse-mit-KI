@@ -8,13 +8,13 @@ describe('estimateBatch', () => {
     expect(e.minSeconds).toBe(120)
     expect(e.maxSeconds).toBe(240)
     expect(e.costUsd).toBeCloseTo(0.3)
-    expect(e.fmpCalls).toBe(78)
+    expect(e.fmpCalls).toBe(90)
     expect(e.exceedsFmpFreeLimit).toBe(false)
   })
 
   it('warnt, wenn das FMP-Free-Tageslimit ueberschritten wuerde', () => {
-    expect(estimateBatch(19, 0, null).exceedsFmpFreeLimit).toBe(false) // 247
-    expect(estimateBatch(20, 0, null).exceedsFmpFreeLimit).toBe(true) // 260
+    expect(estimateBatch(16, 0, null).exceedsFmpFreeLimit).toBe(false) // 240
+    expect(estimateBatch(17, 0, null).exceedsFmpFreeLimit).toBe(true) // 255
   })
 
   it('liefert ohne historische Kosten keine Kostenschaetzung', () => {

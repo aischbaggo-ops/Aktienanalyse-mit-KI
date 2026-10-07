@@ -5,8 +5,9 @@ export const MAX_BATCH_SIZE = 100
 const SECONDS_PER_ANALYSIS_MIN = 20
 const SECONDS_PER_ANALYSIS_MAX = 40
 
-// Pro neuer Analyse ruft die analyse-Function 13 FMP-Endpoints ab.
-export const FMP_CALLS_PER_ANALYSIS = 13
+// Pro neuer Analyse ruft die analyse-Function 15 FMP-Endpoints ab (Kurshistorie
+// von Aktie und Index je in zwei Fenstern, Backend-PR #35).
+export const FMP_CALLS_PER_ANALYSIS = 15
 // Tageslimit im FMP-Free-Plan. Nur fuer einen Warnhinweis, keine Blockade.
 export const FMP_FREE_DAILY_LIMIT = 250
 

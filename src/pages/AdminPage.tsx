@@ -371,7 +371,7 @@ export function AdminPage() {
         <p className="mb-3 text-xs text-memo-muted">
           Kumulierte Summe eigener Analyse-Läufe im Tagesverlauf (request_log, source=processing),
           nicht die tatsächliche FMP-Auslastung — Ticker-Suche ist hier nicht enthalten, eine Analyse
-          löst ≈13 FMP-Aufrufe aus. Gestrichelte Linie: manuell eingetragenes Tageskontingent
+          löst ≈15 FMP-Aufrufe aus. Gestrichelte Linie: manuell eingetragenes Tageskontingent
           ({FMP_DAILY_LIMIT}), nicht von FMP abgefragt — läuft die Kurve darauf zu, wird es eng.
         </p>
         <SeriesBarChart
