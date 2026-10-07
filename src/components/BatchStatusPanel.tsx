@@ -88,7 +88,7 @@ function Confirm({ batch }: { batch: Batch }) {
             onChange={(ev) => batch.setIntervalSeconds(Math.max(0, Math.min(600, Number(ev.target.value) || 0)))}
             className="w-16 rounded-sm border border-memo-line px-1.5 py-0.5 text-memo-ink"
           />
-          Sekunden (Standard 30 s hält das Limit von 120 Analysen pro Stunde ein; Cache-Treffer ohne Pause)
+          Sekunden (Standard 30 s hält das Limit von 150 Analysen pro Stunde ein; Cache-Treffer ohne Pause)
         </label>
         <p>{STAY_AWAKE_HINT}</p>
       </div>
