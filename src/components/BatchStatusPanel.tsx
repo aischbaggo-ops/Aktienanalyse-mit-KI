@@ -1,4 +1,4 @@
-import { formatDurationRange } from '../utils/batchEstimate'
+import { FMP_CALLS_PER_ANALYSIS, formatDurationRange } from '../utils/batchEstimate'
 import { AnalysisResultsList, type AnalysisResultRow } from './AnalysisResultsList'
 import type { useBatchAnalysis } from '../hooks/useBatchAnalysis'
 
@@ -68,7 +68,7 @@ function Confirm({ batch }: { batch: Batch }) {
           )}
           {e.exceedsFmpFreeLimit && (
             <p className="text-memo-minusText">
-              ⚠ Ca. {e.fmpCalls} FMP-Abrufe (13 pro Wert) – das übersteigt das Tageslimit von 250 im FMP-Free-Plan.
+              ⚠ Ca. {e.fmpCalls} FMP-Abrufe ({FMP_CALLS_PER_ANALYSIS} pro Wert) – das übersteigt das Tageslimit von 250 im FMP-Free-Plan.
               Einzelne Analysen können dadurch fehlschlagen.
             </p>
           )}
