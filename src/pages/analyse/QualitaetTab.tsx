@@ -2,7 +2,12 @@ import type { CriterionEntry, StockAnalysis } from '../../types/database'
 import { MEMO_PLUS, MEMO_MINUS, MEMO_GRAU } from '../../lib/memoColors.js'
 import { InfoTooltip } from '../../components/InfoTooltip'
 
-const KO_NAMES = ['Keine Skandale', 'Keine schweren Vorwuerfe gegen Unternehmen', 'Keine schweren Vorwuerfe gegen Management']
+const KO_NAMES = [
+  'Geschaeftsmodell verstanden',
+  'Keine Skandale',
+  'Keine schweren Vorwuerfe gegen Unternehmen',
+  'Keine schweren Vorwuerfe gegen Management',
+]
 
 function ampelDotColor(ampel: string): string {
   switch (ampel) {
