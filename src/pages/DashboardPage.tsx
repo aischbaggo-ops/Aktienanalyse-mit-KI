@@ -11,8 +11,20 @@ import { BatchSelectionPanel } from '../components/BatchSelectionPanel'
 import { IndexSelectionPanel } from '../components/IndexSelectionPanel'
 import { BatchStatusPanel } from '../components/BatchStatusPanel'
 import { AnalysisResultsList, type AnalysisResultRow } from '../components/AnalysisResultsList'
+import {
+  applyRecentView,
+  DEFAULT_RECENT_SORT,
+  parseMinScore,
+  RECENT_RANGES,
+  RECENT_SELECT,
+  RECENT_SORTS,
+  recentSince,
+  type RecentRange,
+  type RecentRow,
+  type RecentSort,
+} from '../lib/recentList'
 import { generateAnalysisPdf } from '../utils/pdfExport'
-import type { StockAnalysis, WatchlistWithAnalysis } from '../types/database'
+import type { WatchlistWithAnalysis } from '../types/database'
 
 type MaxAge = '1' | '7' | '30' | 'always'
 
@@ -39,8 +51,11 @@ export function DashboardPage() {
   const [analysing, setAnalysing] = useState(false)
   const [analyseError, setAnalyseError] = useState<string | null>(null)
 
-  const [recent, setRecent] = useState<StockAnalysis[]>([])
+  const [recent, setRecent] = useState<RecentRow[]>([])
   const [recentLoading, setRecentLoading] = useState(true)
+  const [recentRange, setRecentRange] = useState<RecentRange>('24h')
+  const [recentSort, setRecentSort] = useState<RecentSort>(DEFAULT_RECENT_SORT)
+  const [minScoreInput, setMinScoreInput] = useState('')
 
   const [watchlist, setWatchlist] = useState<WatchlistWithAnalysis[]>([])
   const [watchlistLoading, setWatchlistLoading] = useState(true)
@@ -82,16 +97,26 @@ export function DashboardPage() {
     }
   }, [user])
 
-  async function loadRecent() {
+  // Schlanke Abfrage (RECENT_SELECT): nur die Listenspalten, kein chart_data.
+  async function loadRecent(range: RecentRange = recentRange) {
     setRecentLoading(true)
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     const { data } = await supabase
       .from('stock_analyses')
-      .select('*')
-      .gt('updated_at', since)
+      .select(RECENT_SELECT)
+      .gt('updated_at', recentSince(range, Date.now()))
       .order('updated_at', { ascending: false })
-    setRecent(data ?? [])
+    setRecent((data ?? []) as unknown as RecentRow[])
     setRecentLoading(false)
+  }
+
+  function changeRecentRange(range: RecentRange) {
+    setRecentRange(range)
+    loadRecent(range)
+  }
+
+  function resetRecentView() {
+    setRecentSort(DEFAULT_RECENT_SORT)
+    setMinScoreInput('')
   }
 
   async function loadWatchlist() {
@@ -185,14 +210,15 @@ export function DashboardPage() {
 
   const watchlistTickerSet = new Set(watchlist.map((w) => w.ticker))
 
-  // Bereits nach updated_at absteigend sortiert (siehe loadRecent). Bei
-  // einem Status ungleich "done" (pending/running/error) steht statt des
-  // Datums der Status davor, damit das nicht wie eine fertige Analyse
-  // aussieht.
-  const recentRows: AnalysisResultRow[] = recent.map((a) => ({
+  // Sortierung und Filter "Score ab" (lib/recentList.ts). Bei einem Status
+  // ungleich "done" (pending/running/error) steht statt des Datums der
+  // Status davor, damit das nicht wie eine fertige Analyse aussieht.
+  const minScore = parseMinScore(minScoreInput)
+  const recentShown = applyRecentView(recent, recentSort, minScore)
+  const recentRows: AnalysisResultRow[] = recentShown.map((a) => ({
     ticker: a.ticker,
     name: a.company_name ?? a.ticker,
-    image: a.chart_data?.profileMeta?.image,
+    image: a.image,
     score: a.score_total,
     metaLabel:
       a.status === 'done'
@@ -291,21 +317,83 @@ export function DashboardPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-base font-semibold text-navy-950">Letzte Analysen (24h)</h2>
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <h2 className="text-base font-semibold text-navy-950">Letzte Analysen</h2>
+          <select
+            value={recentRange}
+            onChange={(e) => changeRecentRange(e.target.value as RecentRange)}
+            aria-label="Zeitraum"
+            className="rounded-md border border-memo-line bg-white px-2 py-1 text-xs text-memo-ink"
+          >
+            {RECENT_RANGES.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </div>
         {recentLoading ? (
           <p className="text-sm text-memo-muted">Lade...</p>
         ) : recent.length === 0 ? (
-          <p className="text-sm text-memo-muted">Noch keine Analysen in den letzten 24h.</p>
+          <p className="text-sm text-memo-muted">
+            Noch keine Analysen in den letzten {recentRange === '24h' ? '24 Stunden' : '7 Tagen'}.
+          </p>
         ) : (
-          <AnalysisResultsList
-            rows={recentRows}
-            watchlistTickers={watchlistTickerSet}
-            userId={user?.id}
-            onWatchlistChanged={loadWatchlist}
-            onOpenTicker={navigateToAnalyse}
-            onDownloadPdf={handleDownloadPdf}
-            downloadingTicker={downloadingTicker}
-          />
+          <>
+            <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-memo-muted">
+              <label className="flex items-center gap-1.5">
+                Sortierung
+                <select
+                  value={recentSort}
+                  onChange={(e) => setRecentSort(e.target.value as RecentSort)}
+                  className="rounded-md border border-memo-line bg-white px-2 py-1 text-memo-ink"
+                >
+                  {RECENT_SORTS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-1.5">
+                Score ab
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={100}
+                  value={minScoreInput}
+                  onChange={(e) => setMinScoreInput(e.target.value)}
+                  placeholder="–"
+                  className="w-16 rounded-md border border-memo-line px-2 py-1 text-memo-ink"
+                />
+              </label>
+              <button
+                onClick={resetRecentView}
+                disabled={recentSort === DEFAULT_RECENT_SORT && minScoreInput === ''}
+                className="text-memo-muted underline hover:text-memo-ink disabled:no-underline disabled:opacity-50"
+              >
+                Zurücksetzen
+              </button>
+              <span className="ml-auto">
+                {recentShown.length} von {recent.length} angezeigt
+              </span>
+            </div>
+            {recentShown.length === 0 ? (
+              <p className="text-sm text-memo-muted">Keine Analyse mit Score ab {minScore}.</p>
+            ) : (
+              <AnalysisResultsList
+                rows={recentRows}
+                watchlistTickers={watchlistTickerSet}
+                userId={user?.id}
+                onWatchlistChanged={loadWatchlist}
+                onOpenTicker={navigateToAnalyse}
+                onDownloadPdf={handleDownloadPdf}
+                downloadingTicker={downloadingTicker}
+                showSelectAll
+              />
+            )}
+          </>
         )}
       </section>
 
