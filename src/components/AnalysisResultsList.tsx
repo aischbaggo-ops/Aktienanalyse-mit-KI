@@ -31,6 +31,7 @@ export function AnalysisResultsList({
   heading,
   onDownloadPdf,
   downloadingTicker,
+  showSelectAll,
 }: {
   rows: AnalysisResultRow[]
   watchlistTickers: Set<string>
@@ -43,8 +44,15 @@ export function AnalysisResultsList({
   // nutzt das bewusst nicht.
   onDownloadPdf?: (ticker: string) => void
   downloadingTicker?: string | null
+  // Optional: Knopf "Alle angezeigten auswählen" (z.B. "Letzte Analysen"
+  // mit Filter). Der Batch-Ergebnis-Panel nutzt ihn nicht.
+  showSelectAll?: boolean
 }) {
-  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [pickedRaw, setPicked] = useState<Set<string>>(new Set())
+  // Nur Ticker zaehlen, die gerade angezeigt werden: nach einem Filterwechsel
+  // landen ausgeblendete, frueher markierte Ticker nicht auf der Watchlist.
+  const visible = new Set(rows.map((r) => r.ticker))
+  const picked = new Set([...pickedRaw].filter((t) => visible.has(t)))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -57,6 +65,10 @@ export function AnalysisResultsList({
       else next.add(ticker)
       return next
     })
+  }
+
+  function pickAllShown() {
+    setPicked(new Set(rows.filter((r) => !watchlistTickers.has(r.ticker)).map((r) => r.ticker)))
   }
 
   async function addToWatchlist() {
@@ -90,13 +102,24 @@ export function AnalysisResultsList({
         ) : (
           <span />
         )}
-        <button
-          onClick={addToWatchlist}
-          disabled={busy || picked.size === 0}
-          className="rounded-md border border-memo-line px-3 py-1 text-xs font-medium text-memo-ink transition-colors hover:border-memo-ink disabled:opacity-50"
-        >
-          {picked.size} zur Watchlist hinzufügen
-        </button>
+        <div className="flex items-center gap-2">
+          {showSelectAll && (
+            <button
+              onClick={pickAllShown}
+              disabled={busy}
+              className="rounded-md border border-memo-line px-3 py-1 text-xs font-medium text-memo-muted transition-colors hover:border-memo-ink hover:text-memo-ink disabled:opacity-50"
+            >
+              Alle angezeigten auswählen
+            </button>
+          )}
+          <button
+            onClick={addToWatchlist}
+            disabled={busy || picked.size === 0}
+            className="rounded-md border border-memo-line px-3 py-1 text-xs font-medium text-memo-ink transition-colors hover:border-memo-ink disabled:opacity-50"
+          >
+            {picked.size} zur Watchlist hinzufügen
+          </button>
+        </div>
       </div>
       <ul className="max-h-80 divide-y divide-memo-line2 overflow-y-auto rounded-lg border border-memo-line">
         {rows.map((r) => {
