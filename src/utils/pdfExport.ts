@@ -1,6 +1,6 @@
 import { jsPDF, GState } from 'jspdf'
 import { MEMO_PLUS, MEMO_MINUS, MEMO_GRAU } from '../lib/memoColors.js'
-import { fmtMoney, fmtCompact, fmtPct, dash, formatMarketCap } from '../lib/memoFormat'
+import { fmtMoney, fmtCompact, fmtPct, dash, formatMarketCap, dataSourceLabel, formatReturnPct } from '../lib/memoFormat'
 import { scoreLabel } from '../lib/score'
 import { PROGNOSE_MULTIPLES_NOTE } from '../lib/dataFlags'
 import type { CriterionEntry, StockAnalysis, WarningEntry } from '../types/database'
@@ -375,7 +375,8 @@ export function buildAnalysisPdf(analysis: StockAnalysis): jsPDF {
   sectionLabel('Kursgewinn- und Drawdown-Phasen (jährlich)')
   if (returnBars.length > 0) {
     returnBars.forEach((rb) => {
-      kvRow(rb.period, `${rb.pct >= 0 ? '+' : ''}${rb.pct.toFixed(1)}%`, { valueColor: rb.pct >= 0 ? PLUS : MINUS })
+      // pct ist ein Anteil (0.209 = +20,9 %), nicht bereits in Prozent.
+      kvRow(rb.period, formatReturnPct(rb.pct), { valueColor: rb.pct >= 0 ? PLUS : MINUS })
     })
   } else {
     bodyText('Keine Daten verfügbar.', { color: GRAU })
@@ -653,7 +654,7 @@ export function buildAnalysisPdf(analysis: StockAnalysis): jsPDF {
   // ===================== Fußnote + Seitenzahlen =====================
 
   const footerLine = [
-    `Datenquelle: ${analysis.data_source ?? '–'}`,
+    `Datenquelle: ${dataSourceLabel(analysis.data_source)}`,
     `Aktualisiert: ${new Date(analysis.updated_at).toLocaleString('de-DE')}`,
   ]
     .filter(Boolean)

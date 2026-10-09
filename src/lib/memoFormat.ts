@@ -49,3 +49,19 @@ export function formatMarketCap(value: number | null | undefined, currency: stri
   else short = value.toLocaleString('de-DE')
   return `${short} ${cur}`
 }
+
+// Anzeigename der Datenquelle (stock_analyses.data_source) statt des
+// internen Codes. fmp_free_limited = Lauf mit eingeschraenkten Daten
+// (kurze Kurshistorie oder keine Analystenschaetzungen).
+export function dataSourceLabel(dataSource: string | null | undefined): string {
+  if (!dataSource) return '–'
+  if (dataSource === 'fmp_full') return 'Financial Modeling Prep (FMP)'
+  if (dataSource.startsWith('fmp')) return 'Financial Modeling Prep (FMP), eingeschränkte Daten'
+  return dataSource
+}
+
+// Jahresrendite aus chart_data.returnBars: pct ist ein Anteil (0.209 = +20,9 %).
+export function formatReturnPct(pct: number): string {
+  const v = pct * 100
+  return `${v >= 0 ? '+' : ''}${v.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`
+}
