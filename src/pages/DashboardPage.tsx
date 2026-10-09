@@ -25,7 +25,7 @@ import {
 } from '../lib/analysisTable'
 import { scoreBorderClass } from '../lib/score'
 import { generateAnalysisPdf } from '../utils/pdfExport'
-import { MAX_AGE_OPTIONS, readMaxAge, storeMaxAge, type MaxAge } from '../lib/preferences'
+import { MAX_AGE_OPTIONS, maxAgeCostHint, readMaxAge, storeMaxAge, type MaxAge } from '../lib/preferences'
 
 
 // Watchlist-Eintrag mit den Tabellenwerten aus analysis_ranking (ohne
@@ -60,8 +60,9 @@ export function DashboardPage() {
   const navigate = useNavigate()
 
   const [selected, setSelected] = useState<SymbolSearchResult | null>(null)
-  // Gemerkt je Browser (lib/preferences.ts), damit "Immer neu laden" nach
-  // dem Zurueckkehren von der Analyseseite nicht wieder auf 7 Tage steht.
+  // Gemerkt fuer die Browser-Sitzung (lib/preferences.ts), damit "Immer neu
+  // laden" nach dem Zurueckkehren von der Analyseseite nicht wieder auf 7
+  // Tage steht.
   const [maxAge, setMaxAge] = useState<MaxAge>(readMaxAge)
   const [analysing, setAnalysing] = useState(false)
   const [analyseError, setAnalyseError] = useState<string | null>(null)
@@ -358,6 +359,11 @@ export function DashboardPage() {
             {analysing ? 'Analysiere...' : 'Analysieren'}
           </button>
         </div>
+        {maxAgeCostHint(maxAge) && (
+          <p role="note" className="mt-2 text-xs text-memo-minusText">
+            {maxAgeCostHint(maxAge)}
+          </p>
+        )}
         {selected && (
           <p className="mt-2 text-xs text-memo-muted">
             Ausgewählt: <span className="font-analyst text-memo-ink">{selected.symbol}</span> —{' '}
