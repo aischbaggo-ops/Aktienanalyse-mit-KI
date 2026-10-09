@@ -12,3 +12,49 @@ body {
   @apply bg-memo-paper text-navy-950;
   font-family: 'Inter', system-ui, sans-serif;
 }
+
+/* Druckansicht (/analyse/:ticker/druck): A4, saubere Seitenumbrueche. */
+@page {
+  size: A4;
+  margin: 14mm 12mm;
+}
+
+@media print {
+  body {
+    background: white;
+  }
+  /* Farbige Plaketten, Ampeln und Diagrammflaechen mitdrucken. */
+  .druck,
+  .druck * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* Jeder Hauptbereich ab dem zweiten beginnt auf einer neuen Seite. */
+  .druck .druck-neue-seite {
+    break-before: page;
+  }
+  /* Diagramme, Karten, Tabellenzeilen und Listenpunkte nicht zerteilen. */
+  .druck svg,
+  .druck figure,
+  .druck tr,
+  .druck li,
+  .druck .rounded-sm,
+  .druck .rounded-md,
+  .druck .rounded-lg,
+  .druck .druck-zusammenhalten {
+    break-inside: avoid;
+  }
+  .druck h2,
+  .druck h3 {
+    break-after: avoid;
+  }
+  /* Tabellenkoepfe auf jeder Seite wiederholen. */
+  .druck thead {
+    display: table-header-group;
+  }
+  /* Scroll-Container mit fester Hoehe im Druck aufklappen. */
+  .druck [class*='overflow-'] {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+}

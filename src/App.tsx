@@ -8,6 +8,7 @@ import { LoginPage } from './pages/LoginPage'
 import { SetPasswordPage } from './pages/SetPasswordPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { AnalysePage } from './pages/AnalysePage'
+import { DruckansichtPage } from './pages/DruckansichtPage'
 import { AlleAnalysenPage } from './pages/AlleAnalysenPage'
 import { AdminPage } from './pages/AdminPage'
 import { AdminChatPage } from './pages/AdminChatPage'
@@ -23,6 +24,8 @@ export default function App() {
           <Route path="/passwort-setzen" element={<SetPasswordPage />} />
 
           <Route element={<ProtectedRoute />}>
+            {/* Druckansicht ohne App-Navigation */}
+            <Route path="/analyse/:ticker/druck" element={<DruckansichtPage />} />
             <Route element={<Layout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/analyse/:ticker" element={<AnalysePage />} />

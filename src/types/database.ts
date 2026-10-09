@@ -182,6 +182,10 @@ export interface DataFlags {
   estimates_count?: number
   reported_currency?: string | null
   benchmark_symbol?: string
+  // Version der Bewertungsmethodik (Backend dataFlags.ts, 2 seit #35)
+  methodik_version?: number
+  // Fangnetz oder swot-Fallback hat Felder aus dem Text gerettet
+  llm_recovered?: boolean
 }
 
 export interface ChartData {
