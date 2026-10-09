@@ -13,6 +13,15 @@ export function scoreColor(score: number | null | undefined): string {
 // getrennt von scoreColor()s Farbwerten (alte, kraeftige Ampelfarben) -
 // die Analyse-Kopfzeile nutzt die gedaempfte Memo-Palette, siehe
 // scoreLabelColorClass()/scoreBandHex() weiter unten.
+// Rahmenfarbe der Watchlist-Karten (und Farbmarkierung der Watchlist-Liste),
+// gleiche Bandgrenzen 70/40 wie scoreColor().
+export function scoreBorderClass(score: number | null | undefined): string {
+  if (score == null) return 'border-memo-grau'
+  if (score >= 70) return 'border-memo-plus'
+  if (score >= 40) return 'border-ampel-yellow'
+  return 'border-memo-minus'
+}
+
 export function scoreLabel(score: number | null | undefined): string {
   if (score === null || score === undefined) return '–'
   if (score >= 85) return 'Stark'

@@ -57,6 +57,12 @@ function Confirm({ batch }: { batch: Batch }) {
             )}
             .
           </p>
+          {batch.forceRefresh && (
+            <p className="text-memo-minusText">
+              Der Watchlist-Batch erzwingt frische Läufe: Alle ausgewählten Werte werden neu berechnet, auch wenn
+              eine aktuelle Analyse im 7-Tage-Cache liegt.
+            </p>
+          )}
           {e.uncached > 0 ? (
             <p>
               Neu zu analysieren: <strong>{e.uncached}</strong> · Dauer {formatDurationRange(e.minSeconds, e.maxSeconds)}{' '}
