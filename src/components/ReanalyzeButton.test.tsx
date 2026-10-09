@@ -12,6 +12,7 @@ describe('ReanalyzeButton', () => {
     const html = render({})
     expect(html).toContain('Neu analysieren')
     expect(html).toContain('ohne 7-Tage-Cache')
+    expect(html).toContain('ca. 0,04 USD')
     expect(html).not.toMatch(/ disabled=""/)
   })
 
