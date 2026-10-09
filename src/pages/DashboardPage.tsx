@@ -24,16 +24,9 @@ import {
   type RecentSort,
 } from '../lib/recentList'
 import { generateAnalysisPdf } from '../utils/pdfExport'
+import { MAX_AGE_OPTIONS, readMaxAge, storeMaxAge, type MaxAge } from '../lib/preferences'
 import type { WatchlistWithAnalysis } from '../types/database'
 
-type MaxAge = '1' | '7' | '30' | 'always'
-
-const MAX_AGE_OPTIONS: { value: MaxAge; label: string }[] = [
-  { value: '1', label: '24 Stunden' },
-  { value: '7', label: '7 Tage (Standard)' },
-  { value: '30', label: '30 Tage' },
-  { value: 'always', label: 'Immer neu laden' },
-]
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'wartet',
@@ -47,7 +40,9 @@ export function DashboardPage() {
   const navigate = useNavigate()
 
   const [selected, setSelected] = useState<SymbolSearchResult | null>(null)
-  const [maxAge, setMaxAge] = useState<MaxAge>('7')
+  // Gemerkt je Browser (lib/preferences.ts), damit "Immer neu laden" nach
+  // dem Zurueckkehren von der Analyseseite nicht wieder auf 7 Tage steht.
+  const [maxAge, setMaxAge] = useState<MaxAge>(readMaxAge)
   const [analysing, setAnalysing] = useState(false)
   const [analyseError, setAnalyseError] = useState<string | null>(null)
 
@@ -250,7 +245,11 @@ export function DashboardPage() {
           <SymbolSearch onSelect={setSelected} />
           <select
             value={maxAge}
-            onChange={(e) => setMaxAge(e.target.value as MaxAge)}
+            onChange={(e) => {
+              const v = e.target.value as MaxAge
+              setMaxAge(v)
+              storeMaxAge(v)
+            }}
             className="rounded-lg border border-memo-line bg-white px-3 py-2.5 text-sm text-navy-950 outline-none focus:border-memo-ink"
           >
             {MAX_AGE_OPTIONS.map((opt) => (
