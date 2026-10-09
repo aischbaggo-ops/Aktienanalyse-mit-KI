@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyRecentView, parseMinScore, RECENT_SELECT, recentSince, type RecentRow } from './recentList'
+import { applyRecentView, applyWatchlistView, parseMinScore, RECENT_SELECT, recentSince, WATCHLIST_SELECT, type RecentRow } from './recentList'
 
 const row = (ticker: string, score: number | null, updated_at: string): RecentRow => ({
   ticker,
@@ -77,5 +77,42 @@ describe('Abfrage', () => {
     const now = Date.parse('2026-10-08T12:00:00Z')
     expect(recentSince('24h', now)).toBe('2026-10-07T12:00:00.000Z')
     expect(recentSince('7d', now)).toBe('2026-10-01T12:00:00.000Z')
+  })
+})
+
+describe('applyWatchlistView (Watchlist als Liste)', () => {
+  const w = (ticker: string, score: number | null, updated_at: string | null) => ({
+    user_id: 'u1',
+    ticker,
+    analysis_id: null,
+    added_at: '2026-10-01T00:00:00Z',
+    stock_analyses:
+      updated_at === null
+        ? null
+        : { ticker, company_name: ticker, sector: 'Tech', score_total: score, status: 'done', updated_at, image: null },
+  })
+  const list = [
+    w('MSFT', 78, '2026-10-08T07:23:00Z'),
+    w('NEU', null, null), // noch nicht analysiert
+    w('COST', 85, '2026-10-08T07:21:00Z'),
+    w('AAPL', 70, '2026-10-09T06:00:00Z'),
+  ]
+  const t = (r: { ticker: string }[]) => r.map((x) => x.ticker)
+
+  it('sortiert nach Score, Ticker und Analysedatum, ohne Analyse immer am Ende', () => {
+    expect(t(applyWatchlistView(list, 'score_desc', null))).toEqual(['COST', 'MSFT', 'AAPL', 'NEU'])
+    expect(t(applyWatchlistView(list, 'score_asc', null))).toEqual(['AAPL', 'MSFT', 'COST', 'NEU'])
+    expect(t(applyWatchlistView(list, 'ticker', null))).toEqual(['AAPL', 'COST', 'MSFT', 'NEU'])
+    expect(t(applyWatchlistView(list, 'newest', null))).toEqual(['AAPL', 'MSFT', 'COST', 'NEU'])
+  })
+
+  it('Filter "Score ab" blendet Zeilen ohne Analyse aus', () => {
+    expect(t(applyWatchlistView(list, 'score_desc', 75))).toEqual(['COST', 'MSFT'])
+  })
+
+  it('Watchlist-Abfrage laedt die Analyse schlank, ohne chart_data als Ganzes', () => {
+    expect(WATCHLIST_SELECT).toContain('stock_analyses!watchlists_ticker_fkey(')
+    expect(WATCHLIST_SELECT).toContain('image:chart_data->profileMeta->>image')
+    expect(WATCHLIST_SELECT).not.toMatch(/\(\*\)|chart_data[,)]|criteria|bewertung|prognose|fazit/)
   })
 })

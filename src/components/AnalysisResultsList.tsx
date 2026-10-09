@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { scoreBorderClass } from '../lib/score'
 
 export interface AnalysisResultRow {
   ticker: string
@@ -12,6 +13,18 @@ export interface AnalysisResultRow {
   // optionales kleines Label rechts vor dem Score, z.B. ein formatiertes
   // Datum oder ein Status ("läuft") - vom Aufrufer frei belegbar.
   metaLabel?: string
+  // optional: Sektor hinter dem Namen (Watchlist-Liste).
+  sector?: string | null
+}
+
+// Von aussen gesteuerte Auswahl (Watchlist-Liste: Auswahl fuer den
+// Watchlist-Batch). Ohne diese Angabe verwaltet die Liste ihre Auswahl
+// selbst und bietet "zur Watchlist hinzufügen" an.
+export interface ExternalSelection {
+  selected: Set<string>
+  onToggle: (ticker: string) => void
+  onSelectShown: (tickers: string[]) => void
+  disabled?: boolean
 }
 
 // Scrollbare Ergebnisliste mit Checkbox-Mehrfachauswahl und Sammel-Button
@@ -32,6 +45,9 @@ export function AnalysisResultsList({
   onDownloadPdf,
   downloadingTicker,
   showSelectAll,
+  selection,
+  colorMarker,
+  highlightedTicker,
 }: {
   rows: AnalysisResultRow[]
   watchlistTickers: Set<string>
@@ -47,6 +63,13 @@ export function AnalysisResultsList({
   // Optional: Knopf "Alle angezeigten auswählen" (z.B. "Letzte Analysen"
   // mit Filter). Der Batch-Ergebnis-Panel nutzt ihn nicht.
   showSelectAll?: boolean
+  // Optional: Auswahl von aussen (siehe ExternalSelection). Dann entfaellt
+  // "zur Watchlist hinzufügen", die Checkboxen spiegeln selection.selected.
+  selection?: ExternalSelection
+  // Optional: farbiger linker Rand nach Score, wie die Watchlist-Karten.
+  colorMarker?: boolean
+  // Optional: Zeile, die gerade analysiert wird (laufender Batch).
+  highlightedTicker?: string | null
 }) {
   const [pickedRaw, setPicked] = useState<Set<string>>(new Set())
   // Nur Ticker zaehlen, die gerade angezeigt werden: nach einem Filterwechsel
@@ -68,6 +91,10 @@ export function AnalysisResultsList({
   }
 
   function pickAllShown() {
+    if (selection) {
+      selection.onSelectShown(rows.map((r) => r.ticker))
+      return
+    }
     setPicked(new Set(rows.filter((r) => !watchlistTickers.has(r.ticker)).map((r) => r.ticker)))
   }
 
@@ -106,39 +133,54 @@ export function AnalysisResultsList({
           {showSelectAll && (
             <button
               onClick={pickAllShown}
-              disabled={busy}
+              disabled={busy || selection?.disabled}
               className="rounded-md border border-memo-line px-3 py-1 text-xs font-medium text-memo-muted transition-colors hover:border-memo-ink hover:text-memo-ink disabled:opacity-50"
             >
               Alle angezeigten auswählen
             </button>
           )}
-          <button
-            onClick={addToWatchlist}
-            disabled={busy || picked.size === 0}
-            className="rounded-md border border-memo-line px-3 py-1 text-xs font-medium text-memo-ink transition-colors hover:border-memo-ink disabled:opacity-50"
-          >
-            {picked.size} zur Watchlist hinzufügen
-          </button>
+          {!selection && (
+            <button
+              onClick={addToWatchlist}
+              disabled={busy || picked.size === 0}
+              className="rounded-md border border-memo-line px-3 py-1 text-xs font-medium text-memo-ink transition-colors hover:border-memo-ink disabled:opacity-50"
+            >
+              {picked.size} zur Watchlist hinzufügen
+            </button>
+          )}
         </div>
       </div>
       <ul className="max-h-80 divide-y divide-memo-line2 overflow-y-auto rounded-lg border border-memo-line">
         {rows.map((r) => {
-          const onList = watchlistTickers.has(r.ticker)
+          // Im externen Modus (Watchlist-Liste) sind alle Zeilen auf der
+          // Watchlist - der Hinweis und die Sperre entfallen dort.
+          const onList = !selection && watchlistTickers.has(r.ticker)
+          const checked = selection ? selection.selected.has(r.ticker) : onList || picked.has(r.ticker)
+          const highlighted = highlightedTicker === r.ticker
           return (
             <li
               key={r.ticker}
               onClick={() => onOpenTicker(r.ticker)}
-              className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-memo-paper"
+              className={`flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-memo-paper ${
+                colorMarker ? `border-l-4 ${scoreBorderClass(r.score)}` : ''
+              } ${highlighted ? 'bg-memo-paper' : ''}`}
             >
-              <input
-                type="checkbox"
-                checked={onList || picked.has(r.ticker)}
-                disabled={onList}
-                onClick={(e) => e.stopPropagation()}
-                onChange={() => toggle(r.ticker)}
-                aria-label={`${r.ticker} zur Watchlist`}
-                className="h-4 w-4 flex-shrink-0 accent-navy-700"
-              />
+              {highlighted ? (
+                <span
+                  aria-label="Analyse läuft"
+                  className="h-4 w-4 flex-shrink-0 animate-spin rounded-full border-2 border-memo-line border-t-memo-ink"
+                />
+              ) : (
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={onList || selection?.disabled}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={() => (selection ? selection.onToggle(r.ticker) : toggle(r.ticker))}
+                  aria-label={selection ? `${r.ticker} für Batch auswählen` : `${r.ticker} zur Watchlist`}
+                  className="h-4 w-4 flex-shrink-0 accent-navy-700"
+                />
+              )}
               {r.image && (
                 <img
                   src={r.image}
@@ -149,6 +191,7 @@ export function AnalysisResultsList({
               <span className="min-w-0 flex-1 truncate">
                 <span className="font-analyst text-memo-ink">{r.ticker}</span>{' '}
                 <span className="text-xs text-memo-muted">{r.name ?? ''}</span>
+                {r.sector && <span className="text-xs text-memo-muted"> · {r.sector}</span>}
               </span>
               {r.metaLabel && <span className="whitespace-nowrap text-[11px] text-memo-muted">{r.metaLabel}</span>}
               {r.cached && <span className="whitespace-nowrap text-[11px] text-memo-muted">Cache</span>}

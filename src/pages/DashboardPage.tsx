@@ -13,18 +13,21 @@ import { BatchStatusPanel } from '../components/BatchStatusPanel'
 import { AnalysisResultsList, type AnalysisResultRow } from '../components/AnalysisResultsList'
 import {
   applyRecentView,
+  applyWatchlistView,
   DEFAULT_RECENT_SORT,
   parseMinScore,
   RECENT_RANGES,
   RECENT_SELECT,
-  RECENT_SORTS,
   recentSince,
+  WATCHLIST_SELECT,
   type RecentRange,
   type RecentRow,
   type RecentSort,
+  type WatchlistRow,
 } from '../lib/recentList'
+import { ListControls, emptyFilterText } from '../components/ListControls'
+import { scoreBorderClass } from '../lib/score'
 import { generateAnalysisPdf } from '../utils/pdfExport'
-import type { WatchlistWithAnalysis } from '../types/database'
 
 type MaxAge = '1' | '7' | '30' | 'always'
 
@@ -57,8 +60,11 @@ export function DashboardPage() {
   const [recentSort, setRecentSort] = useState<RecentSort>(DEFAULT_RECENT_SORT)
   const [minScoreInput, setMinScoreInput] = useState('')
 
-  const [watchlist, setWatchlist] = useState<WatchlistWithAnalysis[]>([])
+  const [watchlist, setWatchlist] = useState<WatchlistRow[]>([])
   const [watchlistLoading, setWatchlistLoading] = useState(true)
+  const [watchlistView, setWatchlistView] = useState<WatchlistView>(readWatchlistView)
+  const [watchlistSort, setWatchlistSort] = useState<RecentSort>(DEFAULT_RECENT_SORT)
+  const [watchlistMinScoreInput, setWatchlistMinScoreInput] = useState('')
   const [selectedTickers, setSelectedTickers] = useState<Set<string>>(new Set())
 
   const [downloadingTicker, setDownloadingTicker] = useState<string | null>(null)
@@ -114,20 +120,16 @@ export function DashboardPage() {
     loadRecent(range)
   }
 
-  function resetRecentView() {
-    setRecentSort(DEFAULT_RECENT_SORT)
-    setMinScoreInput('')
-  }
 
   async function loadWatchlist() {
     if (!user) return
     setWatchlistLoading(true)
     const { data } = await supabase
       .from('watchlists')
-      .select('*, stock_analyses!watchlists_ticker_fkey(*)')
+      .select(WATCHLIST_SELECT)
       .eq('user_id', user.id)
       .order('added_at', { ascending: false })
-    setWatchlist((data as unknown as WatchlistWithAnalysis[]) ?? [])
+    setWatchlist((data as unknown as WatchlistRow[]) ?? [])
     setWatchlistLoading(false)
   }
 
@@ -136,6 +138,22 @@ export function DashboardPage() {
   // Index-/Freitext-Batch nutzt dagegen den 7-Tage-Cache.
   async function startWatchlistBatch() {
     await batch.prepare([...selectedTickers], { forceRefresh: true })
+  }
+
+  // "Alle angezeigten auswählen" in der Watchlist-Liste: ergaenzt die
+  // Batch-Auswahl um alle gerade angezeigten (gefilterten) Ticker.
+  function selectTickers(tickers: string[]) {
+    if (batch.phase !== 'idle') return
+    setSelectedTickers((prev) => new Set([...prev, ...tickers]))
+  }
+
+  function changeWatchlistView(view: WatchlistView) {
+    setWatchlistView(view)
+    try {
+      localStorage.setItem(WATCHLIST_VIEW_KEY, view)
+    } catch {
+      // Nur Komfort - ohne Speicher startet die Ansicht wieder als Karten.
+    }
   }
 
   function toggleTicker(ticker: string) {
@@ -209,6 +227,19 @@ export function DashboardPage() {
   }
 
   const watchlistTickerSet = new Set(watchlist.map((w) => w.ticker))
+
+  // Watchlist als Liste: Sortierung/Filter wie "Letzte Analysen".
+  const watchlistShown = applyWatchlistView(watchlist, watchlistSort, parseMinScore(watchlistMinScoreInput))
+  const watchlistRows: AnalysisResultRow[] = watchlistShown.map((w) => ({
+    ticker: w.ticker,
+    name: w.stock_analyses?.company_name ?? w.ticker,
+    image: w.stock_analyses?.image,
+    sector: w.stock_analyses?.sector ?? null,
+    score: w.stock_analyses?.score_total ?? null,
+    metaLabel: w.stock_analyses?.updated_at
+      ? new Date(w.stock_analyses.updated_at).toLocaleString('de-DE')
+      : 'Noch nicht analysiert',
+  }))
 
   // Sortierung und Filter "Score ab" (lib/recentList.ts). Bei einem Status
   // ungleich "done" (pending/running/error) steht statt des Datums der
@@ -340,47 +371,16 @@ export function DashboardPage() {
           </p>
         ) : (
           <>
-            <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-memo-muted">
-              <label className="flex items-center gap-1.5">
-                Sortierung
-                <select
-                  value={recentSort}
-                  onChange={(e) => setRecentSort(e.target.value as RecentSort)}
-                  className="rounded-md border border-memo-line bg-white px-2 py-1 text-memo-ink"
-                >
-                  {RECENT_SORTS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex items-center gap-1.5">
-                Score ab
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  max={100}
-                  value={minScoreInput}
-                  onChange={(e) => setMinScoreInput(e.target.value)}
-                  placeholder="–"
-                  className="w-16 rounded-md border border-memo-line px-2 py-1 text-memo-ink"
-                />
-              </label>
-              <button
-                onClick={resetRecentView}
-                disabled={recentSort === DEFAULT_RECENT_SORT && minScoreInput === ''}
-                className="text-memo-muted underline hover:text-memo-ink disabled:no-underline disabled:opacity-50"
-              >
-                Zurücksetzen
-              </button>
-              <span className="ml-auto">
-                {recentShown.length} von {recent.length} angezeigt
-              </span>
-            </div>
+            <ListControls
+              sort={recentSort}
+              onSortChange={setRecentSort}
+              minScoreInput={minScoreInput}
+              onMinScoreInputChange={setMinScoreInput}
+              shown={recentShown.length}
+              total={recent.length}
+            />
             {recentShown.length === 0 ? (
-              <p className="text-sm text-memo-muted">Keine Analyse mit Score ab {minScore}.</p>
+              <p className="text-sm text-memo-muted">{emptyFilterText(minScoreInput)}</p>
             ) : (
               <AnalysisResultsList
                 rows={recentRows}
@@ -400,6 +400,22 @@ export function DashboardPage() {
       <section>
         <div className="mb-3 flex flex-wrap items-center gap-3">
           <h2 className="text-base font-semibold text-navy-950">Meine Watchlist</h2>
+          {watchlist.length > 0 && (
+            <div role="group" aria-label="Ansicht" className="flex overflow-hidden rounded-md border border-memo-line text-xs">
+              {WATCHLIST_VIEWS.map((v) => (
+                <button
+                  key={v.value}
+                  onClick={() => changeWatchlistView(v.value)}
+                  aria-pressed={watchlistView === v.value}
+                  className={`px-2.5 py-1 ${
+                    watchlistView === v.value ? 'bg-memo-ink text-white' : 'bg-white text-memo-muted hover:text-memo-ink'
+                  }`}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
+          )}
           {selectedTickers.size > 0 && batch.phase === 'idle' && (
             <>
               <span className="text-xs text-memo-muted">{selectedTickers.size} ausgewählt</span>
@@ -429,6 +445,40 @@ export function DashboardPage() {
           <p className="text-sm text-memo-muted">Lade...</p>
         ) : watchlist.length === 0 ? (
           <p className="text-sm text-memo-muted">Deine Watchlist ist leer.</p>
+        ) : watchlistView === 'list' ? (
+          <>
+            <ListControls
+              sort={watchlistSort}
+              onSortChange={setWatchlistSort}
+              minScoreInput={watchlistMinScoreInput}
+              onMinScoreInputChange={setWatchlistMinScoreInput}
+              shown={watchlistShown.length}
+              total={watchlist.length}
+              dateSortLabel="Analysedatum (neueste zuerst)"
+            />
+            {watchlistShown.length === 0 ? (
+              <p className="text-sm text-memo-muted">{emptyFilterText(watchlistMinScoreInput)}</p>
+            ) : (
+              <AnalysisResultsList
+                rows={watchlistRows}
+                watchlistTickers={watchlistTickerSet}
+                userId={user?.id}
+                onWatchlistChanged={loadWatchlist}
+                onOpenTicker={navigateToAnalyse}
+                onDownloadPdf={handleDownloadPdf}
+                downloadingTicker={downloadingTicker}
+                showSelectAll
+                colorMarker
+                selection={{
+                  selected: selectedTickers,
+                  onToggle: toggleTicker,
+                  onSelectShown: selectTickers,
+                  disabled: batch.phase !== 'idle',
+                }}
+                highlightedTicker={batch.phase === 'running' ? batch.tickers[batch.index] : null}
+              />
+            )}
+          </>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {watchlist.map((w) => (
@@ -437,7 +487,7 @@ export function DashboardPage() {
                 ticker={w.ticker}
                 sector={w.stock_analyses?.sector ?? null}
                 name={w.stock_analyses?.company_name ?? w.ticker}
-                image={w.stock_analyses?.chart_data?.profileMeta?.image}
+                image={w.stock_analyses?.image}
                 score={w.stock_analyses?.score_total ?? null}
                 scoreLabel={
                   w.stock_analyses?.updated_at
@@ -460,11 +510,22 @@ export function DashboardPage() {
   )
 }
 
-function scoreBorderClass(score: number | null): string {
-  if (score == null) return 'border-memo-grau'
-  if (score >= 70) return 'border-memo-plus'
-  if (score >= 40) return 'border-ampel-yellow'
-  return 'border-memo-minus'
+type WatchlistView = 'cards' | 'list'
+
+const WATCHLIST_VIEWS: { value: WatchlistView; label: string }[] = [
+  { value: 'cards', label: 'Karten' },
+  { value: 'list', label: 'Liste' },
+]
+
+const WATCHLIST_VIEW_KEY = 'dashboard.watchlistView'
+
+// Zuletzt gewaehlte Ansicht je Browser (nur Komfort, siehe changeWatchlistView).
+function readWatchlistView(): WatchlistView {
+  try {
+    return localStorage.getItem(WATCHLIST_VIEW_KEY) === 'list' ? 'list' : 'cards'
+  } catch {
+    return 'cards'
+  }
 }
 
 function DashboardTile({

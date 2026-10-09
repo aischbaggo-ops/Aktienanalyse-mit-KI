@@ -1,5 +1,6 @@
-// "Letzte Analysen" im Dashboard: schlanke Abfrage, Sortierung und Filter.
-// Rein, ohne React und ohne Netz - testbar in recentList.test.ts.
+// Listen im Dashboard ("Letzte Analysen", Watchlist als Liste): schlanke
+// Abfragen, Sortierung und Filter. Rein, ohne React und ohne Netz - testbar
+// in recentList.test.ts.
 
 // Nur die Spalten, die die Liste braucht. Bewusst NICHT select('*'): eine
 // volle Zeile ist im Schnitt ~52 kB (chart_data allein ~42 kB), bei 7 Tagen
@@ -14,6 +15,37 @@ export interface RecentRow {
   status: string
   updated_at: string
   image: string | null
+}
+
+// Watchlist: dieselbe schlanke Auswahl fuer die verknuepfte Analyse (vorher
+// stock_analyses(*) - bei ~250 Eintraegen grob 12 MB). PDF-Download und
+// Analyseseite laden die volle Zeile weiterhin selbst.
+export const WATCHLIST_SELECT =
+  'user_id, ticker, analysis_id, added_at, stock_analyses!watchlists_ticker_fkey(ticker, company_name, sector, score_total, status, updated_at, image:chart_data->profileMeta->>image)'
+
+export interface WatchlistAnalysisSlim {
+  ticker: string
+  company_name: string | null
+  sector: string | null
+  score_total: number | null
+  status: string
+  updated_at: string
+  image: string | null
+}
+
+export interface WatchlistRow {
+  user_id: string
+  ticker: string
+  analysis_id: string | null
+  added_at: string
+  stock_analyses: WatchlistAnalysisSlim | null
+}
+
+// Fuer Sortierung/Filter: was applyScoreView() je Zeile braucht.
+export interface ScoreViewItem {
+  ticker: string
+  score_total: number | null
+  updated_at: string | null
 }
 
 export type RecentRange = '24h' | '7d'
@@ -47,17 +79,34 @@ export function parseMinScore(input: string): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-// Filter und Sortierung. Zeilen ohne Score stehen bei jeder Sortierung am
-// Ende und fallen bei aktivem Filter heraus.
-export function applyRecentView(rows: RecentRow[], sort: RecentSort, minScore: number | null): RecentRow[] {
-  const filtered = minScore === null ? rows : rows.filter((r) => r.score_total != null && r.score_total >= minScore)
-  const byTicker = (a: RecentRow, b: RecentRow) => a.ticker.localeCompare(b.ticker)
-  const byNewest = (a: RecentRow, b: RecentRow) => (a.updated_at < b.updated_at ? 1 : a.updated_at > b.updated_at ? -1 : 0)
-  const scoreCmp = (dir: 1 | -1) => (a: RecentRow, b: RecentRow) => {
-    if (a.score_total == null && b.score_total == null) return byTicker(a, b)
+// Filter und Sortierung fuer beide Listen. Zeilen ohne Score stehen bei
+// jeder Sortierung am Ende und fallen bei aktivem Filter heraus.
+export function applyScoreView<T>(
+  rows: T[],
+  sort: RecentSort,
+  minScore: number | null,
+  pick: (row: T) => ScoreViewItem,
+): T[] {
+  const filtered =
+    minScore === null
+      ? rows
+      : rows.filter((r) => {
+          const s = pick(r).score_total
+          return s != null && s >= minScore
+        })
+  const byTicker = (a: T, b: T) => pick(a).ticker.localeCompare(pick(b).ticker)
+  const byNewest = (a: T, b: T) => {
+    const da = pick(a).updated_at ?? ''
+    const db = pick(b).updated_at ?? ''
+    return da < db ? 1 : da > db ? -1 : 0
+  }
+  const scoreCmp = (dir: 1 | -1) => (x: T, y: T) => {
+    const a = pick(x)
+    const b = pick(y)
+    if (a.score_total == null && b.score_total == null) return byTicker(x, y)
     if (a.score_total == null) return 1
     if (b.score_total == null) return -1
-    return (a.score_total - b.score_total) * dir || byTicker(a, b)
+    return (a.score_total - b.score_total) * dir || byTicker(x, y)
   }
   const cmp =
     sort === 'score_desc' ? scoreCmp(-1)
@@ -65,7 +114,21 @@ export function applyRecentView(rows: RecentRow[], sort: RecentSort, minScore: n
     : sort === 'ticker' ? byTicker
     : byNewest
   // Ohne Score immer ans Ende, auch bei A-Z und "neueste zuerst".
-  const withScore = filtered.filter((r) => r.score_total != null).sort(cmp)
-  const withoutScore = filtered.filter((r) => r.score_total == null).sort(cmp)
+  const withScore = filtered.filter((r) => pick(r).score_total != null).sort(cmp)
+  const withoutScore = filtered.filter((r) => pick(r).score_total == null).sort(cmp)
   return [...withScore, ...withoutScore]
+}
+
+export function applyRecentView(rows: RecentRow[], sort: RecentSort, minScore: number | null): RecentRow[] {
+  return applyScoreView(rows, sort, minScore, (r) => r)
+}
+
+// Watchlist: Score und Datum kommen aus der verknuepften Analyse; ohne
+// Analyse zaehlt die Zeile als "ohne Score".
+export function applyWatchlistView(rows: WatchlistRow[], sort: RecentSort, minScore: number | null): WatchlistRow[] {
+  return applyScoreView(rows, sort, minScore, (r) => ({
+    ticker: r.ticker,
+    score_total: r.stock_analyses?.score_total ?? null,
+    updated_at: r.stock_analyses?.updated_at ?? null,
+  }))
 }
