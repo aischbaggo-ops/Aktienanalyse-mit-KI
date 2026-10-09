@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -7,31 +7,50 @@ import { SymbolSearch } from '../components/SymbolSearch'
 import { FeatureTile } from '../components/FeatureTile'
 import { useFeatureAccess } from '../hooks/useFeatureAccess'
 import { useBatchAnalysis } from '../hooks/useBatchAnalysis'
+import { MAX_BATCH_SIZE } from '../utils/batchEstimate'
+import { toggleSelection } from '../lib/selection'
 import { BatchSelectionPanel } from '../components/BatchSelectionPanel'
 import { IndexSelectionPanel } from '../components/IndexSelectionPanel'
 import { BatchStatusPanel } from '../components/BatchStatusPanel'
-import { AnalysisResultsList, type AnalysisResultRow } from '../components/AnalysisResultsList'
+import { AnalysisTable } from '../components/AnalysisTable'
 import {
-  applyRecentView,
-  DEFAULT_RECENT_SORT,
-  parseMinScore,
+  ANALYSIS_TABLE_SELECT,
+  emptyRow,
+  normalizeRow,
   RECENT_RANGES,
-  RECENT_SELECT,
-  RECENT_SORTS,
   recentSince,
+  type AnalysisTableRow,
   type RecentRange,
-  type RecentRow,
-  type RecentSort,
-} from '../lib/recentList'
-import { generateAnalysisPdf } from '../utils/pdfExport'
+} from '../lib/analysisTable'
+import { scoreBorderClass } from '../lib/score'
+import { addTickersToWatchlist, attachErrorInfo, downloadAnalysisPdf } from '../lib/analysisData'
 import { MAX_AGE_OPTIONS, maxAgeCostHint, readMaxAge, storeMaxAge, type MaxAge } from '../lib/preferences'
-import type { WatchlistWithAnalysis } from '../types/database'
 
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'wartet',
-  running: 'läuft',
-  error: 'Fehler',
+// Watchlist-Eintrag mit den Tabellenwerten aus analysis_ranking (ohne
+// Analyse: leere Zeile, siehe emptyRow).
+interface WatchlistItem {
+  ticker: string
+  added_at: string
+  row: AnalysisTableRow
+}
+
+type WatchlistView = 'cards' | 'table'
+
+const WATCHLIST_VIEWS: { value: WatchlistView; label: string }[] = [
+  { value: 'cards', label: 'Karten' },
+  { value: 'table', label: 'Tabelle' },
+]
+
+const WATCHLIST_VIEW_KEY = 'dashboard.watchlistView'
+
+// Zuletzt gewaehlte Ansicht je Browser (nur Komfort).
+function readWatchlistView(): WatchlistView {
+  try {
+    return localStorage.getItem(WATCHLIST_VIEW_KEY) === 'table' ? 'table' : 'cards'
+  } catch {
+    return 'cards'
+  }
 }
 
 export function DashboardPage() {
@@ -47,15 +66,19 @@ export function DashboardPage() {
   const [analysing, setAnalysing] = useState(false)
   const [analyseError, setAnalyseError] = useState<string | null>(null)
 
-  const [recent, setRecent] = useState<RecentRow[]>([])
+  const [recent, setRecent] = useState<AnalysisTableRow[]>([])
   const [recentLoading, setRecentLoading] = useState(true)
   const [recentRange, setRecentRange] = useState<RecentRange>('24h')
-  const [recentSort, setRecentSort] = useState<RecentSort>(DEFAULT_RECENT_SORT)
-  const [minScoreInput, setMinScoreInput] = useState('')
+  // Auswahl in "Letzte Analysen" = Kandidaten fuer "zur Watchlist".
+  const [recentPicked, setRecentPicked] = useState<Set<string>>(new Set())
+  const [recentAddBusy, setRecentAddBusy] = useState(false)
+  const [recentAddError, setRecentAddError] = useState<string | null>(null)
 
-  const [watchlist, setWatchlist] = useState<WatchlistWithAnalysis[]>([])
+  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([])
   const [watchlistLoading, setWatchlistLoading] = useState(true)
+  const [watchlistView, setWatchlistView] = useState<WatchlistView>(readWatchlistView)
   const [selectedTickers, setSelectedTickers] = useState<Set<string>>(new Set())
+  const [watchlistBatchError, setWatchlistBatchError] = useState<string | null>(null)
 
   const [downloadingTicker, setDownloadingTicker] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
@@ -93,15 +116,17 @@ export function DashboardPage() {
     }
   }, [user])
 
-  // Schlanke Abfrage (RECENT_SELECT): nur die Listenspalten, kein chart_data.
+  // Schlanke Abfrage ueber die View analysis_ranking: nur einzelne Werte,
+  // keine ganzen JSON-Spalten (vorher stock_analyses(*), ~52 kB je Zeile).
   async function loadRecent(range: RecentRange = recentRange) {
     setRecentLoading(true)
-    const { data } = await supabase
-      .from('stock_analyses')
-      .select(RECENT_SELECT)
-      .gt('updated_at', recentSince(range, Date.now()))
-      .order('updated_at', { ascending: false })
-    setRecent((data ?? []) as unknown as RecentRow[])
+    const { data, error } = await supabase
+      .from('analysis_ranking')
+      .select(ANALYSIS_TABLE_SELECT)
+      .gt('analysed_at', recentSince(range, Date.now()))
+      .order('analysed_at', { ascending: false })
+    if (error) console.error('Letzte Analysen konnten nicht geladen werden:', error.message)
+    setRecent(await attachErrorInfo(((data ?? []) as unknown as Record<string, unknown>[]).map(normalizeRow)))
     setRecentLoading(false)
   }
 
@@ -110,38 +135,90 @@ export function DashboardPage() {
     loadRecent(range)
   }
 
-  function resetRecentView() {
-    setRecentSort(DEFAULT_RECENT_SORT)
-    setMinScoreInput('')
-  }
-
+  // Watchlist: Eintraege des Nutzers, dazu die Tabellenwerte aus
+  // analysis_ranking (vorher stock_analyses!...(*) mit kompletten Zeilen,
+  // bei ~250 Eintraegen grob 12 MB).
   async function loadWatchlist() {
     if (!user) return
     setWatchlistLoading(true)
-    const { data } = await supabase
+    const { data: entries, error } = await supabase
       .from('watchlists')
-      .select('*, stock_analyses!watchlists_ticker_fkey(*)')
+      .select('ticker, added_at')
       .eq('user_id', user.id)
       .order('added_at', { ascending: false })
-    setWatchlist((data as unknown as WatchlistWithAnalysis[]) ?? [])
+    if (error) console.error('Watchlist konnte nicht geladen werden:', error.message)
+    const list = (entries ?? []) as { ticker: string; added_at: string }[]
+    const byTicker = new Map<string, AnalysisTableRow>()
+    if (list.length > 0) {
+      const { data: rows, error: rowsError } = await supabase
+        .from('analysis_ranking')
+        .select(ANALYSIS_TABLE_SELECT)
+        .in('ticker', list.map((e) => e.ticker))
+      if (rowsError) console.error('Watchlist-Analysen konnten nicht geladen werden:', rowsError.message)
+      for (const raw of (rows ?? []) as unknown as Record<string, unknown>[]) {
+        const row = normalizeRow(raw)
+        byTicker.set(row.ticker, row)
+      }
+    }
+    const rowsWithInfo = await attachErrorInfo(list.map((e) => byTicker.get(e.ticker) ?? emptyRow(e.ticker)))
+    setWatchlist(list.map((e, i) => ({ ...e, row: rowsWithInfo[i] })))
     setWatchlistLoading(false)
+  }
+
+  // Ausgewaehlte Zeilen aus "Letzte Analysen" auf die Watchlist setzen
+  // (wie bisher in AnalysisResultsList).
+  async function addRecentToWatchlist() {
+    if (!user) return
+    const toAdd = [...recentPicked].filter((t) => !watchlistTickerSet.has(t))
+    if (toAdd.length === 0) return
+    setRecentAddBusy(true)
+    setRecentAddError(null)
+    const error = await addTickersToWatchlist(user.id, toAdd)
+    setRecentAddBusy(false)
+    if (error) {
+      setRecentAddError(error)
+      return
+    }
+    setRecentPicked(new Set())
+    loadWatchlist()
+  }
+
+  function changeWatchlistView(view: WatchlistView) {
+    setWatchlistView(view)
+    try {
+      localStorage.setItem(WATCHLIST_VIEW_KEY, view)
+    } catch {
+      // Nur Komfort - ohne Speicher startet die Ansicht wieder als Karten.
+    }
   }
 
   // Watchlist-Batch erzwingt weiterhin frische Laeufe (bisheriges Verhalten):
   // wer bewusst Watchlist-Werte auswaehlt, will aktuelle Ergebnisse. Der
   // Index-/Freitext-Batch nutzt dagegen den 7-Tage-Cache.
   async function startWatchlistBatch() {
-    await batch.prepare([...selectedTickers], { forceRefresh: true })
+    setWatchlistBatchError(null)
+    // prepare() lehnt mehr als MAX_BATCH_SIZE ab - die Meldung anzeigen statt
+    // still nichts zu tun.
+    const err = await batch.prepare([...selectedTickers], { forceRefresh: true })
+    if (err) setWatchlistBatchError(err)
   }
 
+  // Auswahl gesperrt, solange ein Batch bestaetigt wird oder laeuft. Nach
+  // dem Ende ("done") ist sie wieder frei.
+  const batchBusy = batch.phase === 'confirming' || batch.phase === 'running' || batch.phase === 'paused'
+
+  function changeWatchlistSelection(next: Set<string>) {
+    if (batchBusy) return
+    setWatchlistBatchError(null)
+    setSelectedTickers(next)
+  }
+
+  // Karten-Ansicht: einzelne Kachel umschalten, gleiche Obergrenze wie die Tabelle.
   function toggleTicker(ticker: string) {
-    if (batch.phase !== 'idle') return
-    setSelectedTickers((prev) => {
-      const next = new Set(prev)
-      if (next.has(ticker)) next.delete(ticker)
-      else next.add(ticker)
-      return next
-    })
+    if (batchBusy) return
+    const { next, capped } = toggleSelection(selectedTickers, ticker, MAX_BATCH_SIZE)
+    setWatchlistBatchError(capped ? `Höchstens ${MAX_BATCH_SIZE} Werte pro Batch-Lauf.` : null)
+    setSelectedTickers(next)
   }
 
   // Verhindert versehentliches Verlassen der Seite waehrend ein Batch
@@ -164,17 +241,8 @@ export function DashboardPage() {
     setDownloadError(null)
     setDownloadingTicker(ticker)
     try {
-      const { data, error } = await supabase
-        .from('stock_analyses')
-        .select('*')
-        .eq('ticker', ticker)
-        .maybeSingle()
-      if (error || !data) {
-        console.error('PDF-Download fehlgeschlagen (vollständige Analyse konnte nicht geladen werden):', error)
-        setDownloadError(`PDF für ${ticker} konnte nicht erstellt werden.`)
-        return
-      }
-      generateAnalysisPdf(data)
+      const error = await downloadAnalysisPdf(ticker)
+      if (error) setDownloadError(error)
     } finally {
       setDownloadingTicker(null)
     }
@@ -204,23 +272,11 @@ export function DashboardPage() {
     }
   }
 
-  const watchlistTickerSet = new Set(watchlist.map((w) => w.ticker))
+  const watchlistTickerSet = useMemo(() => new Set(watchlist.map((w) => w.ticker)), [watchlist])
+  const watchlistRows = useMemo(() => watchlist.map((w) => w.row), [watchlist])
 
-  // Sortierung und Filter "Score ab" (lib/recentList.ts). Bei einem Status
-  // ungleich "done" (pending/running/error) steht statt des Datums der
-  // Status davor, damit das nicht wie eine fertige Analyse aussieht.
-  const minScore = parseMinScore(minScoreInput)
-  const recentShown = applyRecentView(recent, recentSort, minScore)
-  const recentRows: AnalysisResultRow[] = recentShown.map((a) => ({
-    ticker: a.ticker,
-    name: a.company_name ?? a.ticker,
-    image: a.image,
-    score: a.score_total,
-    metaLabel:
-      a.status === 'done'
-        ? new Date(a.updated_at).toLocaleString('de-DE')
-        : `${STATUS_LABELS[a.status] ?? a.status} · ${new Date(a.updated_at).toLocaleString('de-DE')}`,
-  }))
+  // Nur Ticker zaehlen, die noch nicht auf der Watchlist stehen.
+  const recentPickable = [...recentPicked].filter((t) => !watchlistTickerSet.has(t))
 
   return (
     <div className="space-y-8">
@@ -345,58 +401,28 @@ export function DashboardPage() {
           </p>
         ) : (
           <>
-            <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-memo-muted">
-              <label className="flex items-center gap-1.5">
-                Sortierung
-                <select
-                  value={recentSort}
-                  onChange={(e) => setRecentSort(e.target.value as RecentSort)}
-                  className="rounded-md border border-memo-line bg-white px-2 py-1 text-memo-ink"
+            <AnalysisTable
+              rows={recent}
+              storageKey="dashboard.recent"
+              selected={recentPicked}
+              onSelectionChange={setRecentPicked}
+              isRowLocked={(t) => watchlistTickerSet.has(t)}
+              rowTag={(t) => (watchlistTickerSet.has(t) ? 'auf Watchlist' : null)}
+              onOpenTicker={navigateToAnalyse}
+              onDownloadPdf={handleDownloadPdf}
+              downloadingTicker={downloadingTicker}
+              actions={
+                <button
+                  onClick={addRecentToWatchlist}
+                  disabled={recentAddBusy || recentPickable.length === 0}
+                  className="rounded-md border border-memo-line px-3 py-1 text-xs font-medium text-memo-ink transition-colors hover:border-memo-ink disabled:opacity-50"
                 >
-                  {RECENT_SORTS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex items-center gap-1.5">
-                Score ab
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  max={100}
-                  value={minScoreInput}
-                  onChange={(e) => setMinScoreInput(e.target.value)}
-                  placeholder="–"
-                  className="w-16 rounded-md border border-memo-line px-2 py-1 text-memo-ink"
-                />
-              </label>
-              <button
-                onClick={resetRecentView}
-                disabled={recentSort === DEFAULT_RECENT_SORT && minScoreInput === ''}
-                className="text-memo-muted underline hover:text-memo-ink disabled:no-underline disabled:opacity-50"
-              >
-                Zurücksetzen
-              </button>
-              <span className="ml-auto">
-                {recentShown.length} von {recent.length} angezeigt
-              </span>
-            </div>
-            {recentShown.length === 0 ? (
-              <p className="text-sm text-memo-muted">Keine Analyse mit Score ab {minScore}.</p>
-            ) : (
-              <AnalysisResultsList
-                rows={recentRows}
-                watchlistTickers={watchlistTickerSet}
-                userId={user?.id}
-                onWatchlistChanged={loadWatchlist}
-                onOpenTicker={navigateToAnalyse}
-                onDownloadPdf={handleDownloadPdf}
-                downloadingTicker={downloadingTicker}
-                showSelectAll
-              />
+                  {recentPickable.length} zur Watchlist hinzufügen
+                </button>
+              }
+            />
+            {recentAddError && (
+              <p className="mt-2 text-xs text-ampel-red">Watchlist-Aktion fehlgeschlagen: {recentAddError}</p>
             )}
           </>
         )}
@@ -405,17 +431,37 @@ export function DashboardPage() {
       <section>
         <div className="mb-3 flex flex-wrap items-center gap-3">
           <h2 className="text-base font-semibold text-navy-950">Meine Watchlist</h2>
+          {watchlist.length > 0 && (
+            <div role="group" aria-label="Ansicht" className="flex overflow-hidden rounded-md border border-memo-line text-xs">
+              {WATCHLIST_VIEWS.map((v) => (
+                <button
+                  key={v.value}
+                  onClick={() => changeWatchlistView(v.value)}
+                  aria-pressed={watchlistView === v.value}
+                  className={`px-2.5 py-1 ${
+                    watchlistView === v.value ? 'bg-memo-ink text-white' : 'bg-white text-memo-muted hover:text-memo-ink'
+                  }`}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
+          )}
           {selectedTickers.size > 0 && batch.phase === 'idle' && (
             <>
-              <span className="text-xs text-memo-muted">{selectedTickers.size} ausgewählt</span>
+              <span className="text-xs text-memo-muted">
+                {selectedTickers.size} ausgewählt (max. {MAX_BATCH_SIZE} pro Lauf)
+              </span>
               <button
                 onClick={startWatchlistBatch}
-                className="rounded-md border border-memo-line px-3 py-1 text-xs font-medium text-memo-ink transition-colors hover:border-memo-ink"
+                disabled={selectedTickers.size > MAX_BATCH_SIZE}
+                className="rounded-md border border-memo-line px-3 py-1 text-xs font-medium text-memo-ink transition-colors hover:border-memo-ink disabled:opacity-50"
               >
                 Batch-Analyse starten
               </button>
             </>
           )}
+          {watchlistBatchError && <span className="text-xs text-memo-minusText">{watchlistBatchError}</span>}
         </div>
 
         {batch.forceRefresh && (
@@ -434,19 +480,32 @@ export function DashboardPage() {
           <p className="text-sm text-memo-muted">Lade...</p>
         ) : watchlist.length === 0 ? (
           <p className="text-sm text-memo-muted">Deine Watchlist ist leer.</p>
+        ) : watchlistView === 'table' ? (
+          <AnalysisTable
+            rows={watchlistRows}
+            storageKey="dashboard.watchlist"
+            selected={selectedTickers}
+            onSelectionChange={changeWatchlistSelection}
+            maxSelection={MAX_BATCH_SIZE}
+            selectionDisabled={batchBusy}
+            onOpenTicker={navigateToAnalyse}
+            onDownloadPdf={handleDownloadPdf}
+            downloadingTicker={downloadingTicker}
+            highlightedTicker={batch.phase === 'running' ? batch.tickers[batch.index] : null}
+          />
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {watchlist.map((w) => (
               <DashboardTile
                 key={w.ticker}
                 ticker={w.ticker}
-                sector={w.stock_analyses?.sector ?? null}
-                name={w.stock_analyses?.company_name ?? w.ticker}
-                image={w.stock_analyses?.chart_data?.profileMeta?.image}
-                score={w.stock_analyses?.score_total ?? null}
+                sector={w.row.sector}
+                name={w.row.name ?? w.ticker}
+                image={w.row.logo_url}
+                score={w.row.score_total}
                 scoreLabel={
-                  w.stock_analyses?.updated_at
-                    ? `Analysiert: ${new Date(w.stock_analyses.updated_at).toLocaleString('de-DE')}`
+                  w.row.analysed_at
+                    ? `Analysiert: ${new Date(w.row.analysed_at).toLocaleString('de-DE')}`
                     : 'Noch nicht analysiert'
                 }
                 meta={`In Watchlist seit ${new Date(w.added_at).toLocaleDateString('de-DE')}`}
@@ -463,13 +522,6 @@ export function DashboardPage() {
       </section>
     </div>
   )
-}
-
-function scoreBorderClass(score: number | null): string {
-  if (score == null) return 'border-memo-grau'
-  if (score >= 70) return 'border-memo-plus'
-  if (score >= 40) return 'border-ampel-yellow'
-  return 'border-memo-minus'
 }
 
 function DashboardTile({
