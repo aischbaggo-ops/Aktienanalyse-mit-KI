@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -312,7 +312,8 @@ export function DashboardPage() {
     }
   }
 
-  const watchlistTickerSet = new Set(watchlist.map((w) => w.ticker))
+  const watchlistTickerSet = useMemo(() => new Set(watchlist.map((w) => w.ticker)), [watchlist])
+  const watchlistRows = useMemo(() => watchlist.map((w) => w.row), [watchlist])
 
   // Nur Ticker zaehlen, die noch nicht auf der Watchlist stehen.
   const recentPickable = [...recentPicked].filter((t) => !watchlistTickerSet.has(t))
@@ -512,7 +513,7 @@ export function DashboardPage() {
           <p className="text-sm text-memo-muted">Deine Watchlist ist leer.</p>
         ) : watchlistView === 'table' ? (
           <AnalysisTable
-            rows={watchlist.map((w) => w.row)}
+            rows={watchlistRows}
             storageKey="dashboard.watchlist"
             selected={selectedTickers}
             onSelectionChange={changeWatchlistSelection}

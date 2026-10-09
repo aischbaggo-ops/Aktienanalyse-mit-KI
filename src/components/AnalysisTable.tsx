@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   applyTableView,
   assessmentText,
@@ -161,10 +161,30 @@ export function AnalysisTable({
     }
   }, [storageKey])
 
-  const shown = applyTableView(rows, { search, assessment, minScore: parseMinScore(minScoreInput) }, sort)
+  // Nur neu filtern/sortieren, wenn sich Daten oder Filter aendern - nicht
+  // bei jedem Haken (INP bei ~250 Zeilen).
+  const shown = useMemo(
+    () => applyTableView(rows, { search, assessment, minScore: parseMinScore(minScoreInput) }, sort),
+    [rows, search, assessment, minScoreInput, sort],
+  )
   const selectable = shown.filter((r) => !isRowLocked?.(r.ticker)).map((r) => r.ticker)
   const header = headerState(selected, selectable)
   const max = maxSelection ?? Infinity
+
+  // Stabile Callbacks fuer die memoisierten Zeilen: aktuelle Werte ueber
+  // Refs, damit ein Haken nur die betroffene Zeile neu zeichnet.
+  const latest = useRef({ selected, max, onSelectionChange, onOpenTicker, onDownloadPdf })
+  useEffect(() => {
+    latest.current = { selected, max, onSelectionChange, onOpenTicker, onDownloadPdf }
+  })
+  const handleToggle = useCallback((ticker: string) => {
+    const l = latest.current
+    const result = toggleSelection(l.selected, ticker, l.max)
+    setCappedNote(result.capped)
+    l.onSelectionChange(result.next)
+  }, [])
+  const handleOpen = useCallback((ticker: string) => latest.current.onOpenTicker(ticker), [])
+  const handlePdf = useCallback((ticker: string) => latest.current.onDownloadPdf?.(ticker), [])
 
   function apply(result: { next: Set<string>; capped: boolean }) {
     setCappedNote(result.capped)
@@ -346,141 +366,22 @@ export function AnalysisTable({
           <tbody className="divide-y divide-memo-line2">
             {shown.map((r) => {
               const locked = isRowLocked?.(r.ticker) ?? false
-              const tag = rowTag?.(r.ticker) ?? null
-              const highlighted = highlightedTicker === r.ticker
-              const marketCap = formatMarketCap(r.market_cap, r.currency)
-              const assessment = assessmentText(r)
               return (
-                <tr key={r.ticker} className={`hover:bg-memo-paper ${highlighted ? 'bg-memo-paper' : ''}`}>
-                  <td className="px-2 py-1.5 text-center">
-                    {highlighted ? (
-                      <span
-                        aria-label="Analyse läuft"
-                        className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-memo-line border-t-memo-ink"
-                      />
-                    ) : (
-                      <input
-                        type="checkbox"
-                        checked={!locked && selected.has(r.ticker)}
-                        disabled={locked || selectionDisabled}
-                        onChange={() => apply(toggleSelection(selected, r.ticker, max))}
-                        aria-label={locked ? `${r.ticker} (gesperrt)` : `${r.ticker} auswählen`}
-                        title={locked ? (tag ?? 'gesperrt') : undefined}
-                        className="h-4 w-4 accent-navy-700"
-                      />
-                    )}
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <button onClick={() => onOpenTicker(r.ticker)} className="flex max-w-full items-center gap-2 hover:underline">
-                      {r.logo_url ? (
-                        <img
-                          src={r.logo_url}
-                          alt=""
-                          className="h-5 w-5 flex-shrink-0 rounded-sm border border-memo-line2 bg-white object-contain"
-                        />
-                      ) : (
-                        <span className="h-5 w-5 flex-shrink-0" />
-                      )}
-                      <span className="truncate font-analyst text-memo-ink">{r.ticker}</span>
-                    </button>
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <button onClick={() => onOpenTicker(r.ticker)} className={`block max-w-full text-left hover:underline ${cellText}`}>
-                      {r.name ?? r.ticker}
-                    </button>
-                    {tag && <span className="text-[11px] text-memo-muted">{tag}</span>}
-                  </td>
-                  <td className={`px-2 py-1.5 text-xs text-memo-muted ${cellText}`} title={[r.sector, r.industry].filter(Boolean).join(' · ')}>
-                    {r.sector ?? '–'}
-                    {r.industry && <span className="text-memo-muted"> · {r.industry}</span>}
-                  </td>
-                  <td className={`px-2 py-1.5 text-right text-xs ${cellText}`}>{marketCap ?? '–'}</td>
-                  <td className={`px-2 py-1.5 text-right text-xs ${cellText}`}>{formatPrice(r.price, r.currency)}</td>
-                  <td className="px-2 py-1.5 text-xs text-memo-muted">
-                    {formatDate(r.analysed_at)}
-                    {r.last_run_status === 'error' && r.status === 'done' && (
-                      <span title="Letzte Aktualisierung fehlgeschlagen, angezeigt wird die ältere Analyse" className="ml-1 text-ampel-yellow">
-                        !
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-2 py-1.5 text-center">
-                    <ScoreBadge score={r.score_total} title="Gesamtscore" />
-                  </td>
-                  <td
-                    className={`px-2 py-1.5 text-xs font-semibold ${scoreLabelColorClass(r.score_total)} ${cellText}`}
-                    title={assessment.title}
-                  >
-                    {assessment.text}
-                  </td>
-                  <td className="px-2 py-1.5 text-center">
-                    <ScoreBadge score={r.score_fundamental} title="Fundamental" />
-                  </td>
-                  <td className="px-2 py-1.5 text-center">
-                    <ScoreBadge score={r.score_qualitaet} title="Qualität" />
-                  </td>
-                  <td className="px-2 py-1.5 text-center">
-                    <ScoreBadge score={r.score_krise} title="Krisenstabilität" />
-                  </td>
-                  <td className="px-2 py-1.5 text-center">
-                    <ScoreBadge score={r.score_trend} title="Trend" />
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <span className="flex flex-wrap gap-1">
-                      {hasKo(r) && (
-                        <span
-                          title={`K.O.-Kriterium rot${r.ko_count ? ` (${r.ko_count})` : ''}${r.no_go_hart ? ', harter Ausschluss' : ''}`}
-                          className="rounded-sm border border-memo-minus px-1 text-[10px] font-semibold text-memo-minusText"
-                        >
-                          K.O.
-                        </span>
-                      )}
-                      {newsBlocked(r) && (
-                        <span
-                          title="News gesperrt: K.O.-Kriterien ohne aktuelle News bewertet"
-                          className="rounded-sm border border-memo-line px-1 text-[10px] font-semibold text-memo-muted line-through"
-                        >
-                          News
-                        </span>
-                      )}
-                    </span>
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <span className="flex items-center gap-2">
-                      <button onClick={() => onOpenTicker(r.ticker)} className="text-xs font-medium text-memo-ink underline hover:opacity-70">
-                        Öffnen
-                      </button>
-                      {onDownloadPdf && r.score_total != null && (
-                        <button
-                          onClick={() => onDownloadPdf(r.ticker)}
-                          disabled={downloadingTicker === r.ticker}
-                          title={`PDF für ${r.ticker} herunterladen`}
-                          aria-label={`PDF für ${r.ticker} herunterladen`}
-                          className="flex h-6 w-6 items-center justify-center rounded-md text-memo-muted hover:bg-memo-line2 hover:text-memo-ink disabled:opacity-50"
-                        >
-                          {downloadingTicker === r.ticker ? (
-                            <span className="h-3 w-3 animate-spin rounded-full border-2 border-memo-line border-t-memo-ink" />
-                          ) : (
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              className="h-3.5 w-3.5"
-                            >
-                              <path d="M12 3v12" />
-                              <path d="m7 10 5 5 5-5" />
-                              <path d="M5 21h14" />
-                            </svg>
-                          )}
-                        </button>
-                      )}
-                    </span>
-                  </td>
-                </tr>
+                <TableRow
+                  key={r.ticker}
+                  r={r}
+                  checked={!locked && selected.has(r.ticker)}
+                  locked={locked}
+                  tag={rowTag?.(r.ticker) ?? null}
+                  highlighted={highlightedTicker === r.ticker}
+                  disabled={!!selectionDisabled}
+                  downloading={downloadingTicker === r.ticker}
+                  showPdf={!!onDownloadPdf}
+                  cellText={cellText}
+                  onToggle={handleToggle}
+                  onOpen={handleOpen}
+                  onPdf={handlePdf}
+                />
               )
             })}
           </tbody>
@@ -490,3 +391,168 @@ export function AnalysisTable({
     </div>
   )
 }
+
+// Eine Tabellenzeile. memo: zeichnet nur neu, wenn sich ihre eigenen Werte
+// aendern (Haken, Hervorhebung, Download), nicht bei jedem Klick anderswo.
+const TableRow = memo(function TableRow({
+  r,
+  checked,
+  locked,
+  tag,
+  highlighted,
+  disabled,
+  downloading,
+  showPdf,
+  cellText,
+  onToggle,
+  onOpen,
+  onPdf,
+}: {
+  r: AnalysisTableRow
+  checked: boolean
+  locked: boolean
+  tag: string | null
+  highlighted: boolean
+  disabled: boolean
+  downloading: boolean
+  showPdf: boolean
+  cellText: string
+  onToggle: (ticker: string) => void
+  onOpen: (ticker: string) => void
+  onPdf: (ticker: string) => void
+}) {
+  const marketCap = formatMarketCap(r.market_cap, r.currency)
+  const assessment = assessmentText(r)
+  return (
+    <tr className={`hover:bg-memo-paper ${highlighted ? 'bg-memo-paper' : ''}`}>
+      <td className="px-2 py-1.5 text-center">
+        {highlighted ? (
+          <span
+            aria-label="Analyse läuft"
+            className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-memo-line border-t-memo-ink"
+          />
+        ) : (
+          <input
+            type="checkbox"
+            checked={checked}
+            disabled={locked || disabled}
+            onChange={() => onToggle(r.ticker)}
+            aria-label={locked ? `${r.ticker} (gesperrt)` : `${r.ticker} auswählen`}
+            title={locked ? (tag ?? 'gesperrt') : undefined}
+            className="h-4 w-4 accent-navy-700"
+          />
+        )}
+      </td>
+      <td className="px-2 py-1.5">
+        <button onClick={() => onOpen(r.ticker)} className="flex max-w-full items-center gap-2 hover:underline">
+          {r.logo_url ? (
+            <img
+              src={r.logo_url}
+              alt=""
+              className="h-5 w-5 flex-shrink-0 rounded-sm border border-memo-line2 bg-white object-contain"
+            />
+          ) : (
+            <span className="h-5 w-5 flex-shrink-0" />
+          )}
+          <span className="truncate font-analyst text-memo-ink">{r.ticker}</span>
+        </button>
+      </td>
+      <td className="px-2 py-1.5">
+        <button onClick={() => onOpen(r.ticker)} className={`block max-w-full text-left hover:underline ${cellText}`}>
+          {r.name ?? r.ticker}
+        </button>
+        {tag && <span className="text-[11px] text-memo-muted">{tag}</span>}
+      </td>
+      <td className={`px-2 py-1.5 text-xs text-memo-muted ${cellText}`} title={[r.sector, r.industry].filter(Boolean).join(' · ')}>
+        {r.sector ?? '–'}
+        {r.industry && <span className="text-memo-muted"> · {r.industry}</span>}
+      </td>
+      <td className={`px-2 py-1.5 text-right text-xs ${cellText}`}>{marketCap ?? '–'}</td>
+      <td className={`px-2 py-1.5 text-right text-xs ${cellText}`}>{formatPrice(r.price, r.currency)}</td>
+      <td className="px-2 py-1.5 text-xs text-memo-muted">
+        {formatDate(r.analysed_at)}
+        {r.last_run_status === 'error' && r.status === 'done' && (
+          <span title="Letzte Aktualisierung fehlgeschlagen, angezeigt wird die ältere Analyse" className="ml-1 text-ampel-yellow">
+            !
+          </span>
+        )}
+      </td>
+      <td className="px-2 py-1.5 text-center">
+        <ScoreBadge score={r.score_total} title="Gesamtscore" />
+      </td>
+      <td
+        className={`px-2 py-1.5 text-xs font-semibold ${scoreLabelColorClass(r.score_total)} ${cellText}`}
+        title={assessment.title}
+      >
+        {assessment.text}
+      </td>
+      <td className="px-2 py-1.5 text-center">
+        <ScoreBadge score={r.score_fundamental} title="Fundamental" />
+      </td>
+      <td className="px-2 py-1.5 text-center">
+        <ScoreBadge score={r.score_qualitaet} title="Qualität" />
+      </td>
+      <td className="px-2 py-1.5 text-center">
+        <ScoreBadge score={r.score_krise} title="Krisenstabilität" />
+      </td>
+      <td className="px-2 py-1.5 text-center">
+        <ScoreBadge score={r.score_trend} title="Trend" />
+      </td>
+      <td className="px-2 py-1.5">
+        <span className="flex flex-wrap gap-1">
+          {hasKo(r) && (
+            <span
+              title={`K.O.-Kriterium rot${r.ko_count ? ` (${r.ko_count})` : ''}${r.no_go_hart ? ', harter Ausschluss' : ''}`}
+              className="rounded-sm border border-memo-minus px-1 text-[10px] font-semibold text-memo-minusText"
+            >
+              K.O.
+            </span>
+          )}
+          {newsBlocked(r) && (
+            <span
+              title="News gesperrt: K.O.-Kriterien ohne aktuelle News bewertet"
+              className="rounded-sm border border-memo-line px-1 text-[10px] font-semibold text-memo-muted line-through"
+            >
+              News
+            </span>
+          )}
+        </span>
+      </td>
+      <td className="px-2 py-1.5">
+        <span className="flex items-center gap-2">
+          <button onClick={() => onOpen(r.ticker)} className="text-xs font-medium text-memo-ink underline hover:opacity-70">
+            Öffnen
+          </button>
+          {showPdf && r.score_total != null && (
+            <button
+              onClick={() => onPdf(r.ticker)}
+              disabled={downloading}
+              title={`PDF für ${r.ticker} herunterladen`}
+              aria-label={`PDF für ${r.ticker} herunterladen`}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-memo-muted hover:bg-memo-line2 hover:text-memo-ink disabled:opacity-50"
+            >
+              {downloading ? (
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-memo-line border-t-memo-ink" />
+              ) : (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-3.5 w-3.5"
+                >
+                  <path d="M12 3v12" />
+                  <path d="m7 10 5 5 5-5" />
+                  <path d="M5 21h14" />
+                </svg>
+              )}
+            </button>
+          )}
+        </span>
+      </td>
+    </tr>
+  )
+})
