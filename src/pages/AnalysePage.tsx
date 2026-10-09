@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { generateAnalysisPdf } from '../utils/pdfExport'
 import { scoreLabel, scoreLabelColorClass, scoreBandHex, scoreBandFill } from '../lib/score'
-import { formatMarketCap } from '../lib/memoFormat'
+import { dataSourceLabel, formatMarketCap } from '../lib/memoFormat'
 import { koWithoutNewsHint } from '../lib/dataFlags'
 import { formatAnalysisDate, needsPolling } from '../lib/analysisRun'
 import { RefreshNoticeBanner } from '../components/RefreshNoticeBanner'
@@ -412,7 +412,7 @@ export function AnalysePage() {
 
       {/* Footer meta */}
       <div className="flex flex-wrap gap-x-6 gap-y-1 border-t border-memo-line2 pt-4 text-xs text-memo-muted">
-        <span>Datenquelle: {analysis.data_source ?? '–'}</span>
+        <span>Datenquelle: {dataSourceLabel(analysis.data_source)}</span>
       </div>
     </div>
   )
