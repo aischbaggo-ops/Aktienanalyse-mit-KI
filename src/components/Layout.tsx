@@ -19,6 +19,14 @@ export function Layout() {
             >
               Dashboard
             </NavLink>
+            <NavLink
+              to="/analysen"
+              className={({ isActive }) =>
+                isActive ? 'border-b-2 border-memo-ink pb-1 text-memo-ink' : 'text-memo-muted hover:text-memo-ink'
+              }
+            >
+              Alle Analysen
+            </NavLink>
             {isAdmin && (
               <NavLink
                 to="/admin/aktivitaet"

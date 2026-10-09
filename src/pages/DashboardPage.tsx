@@ -16,7 +16,6 @@ import { AnalysisTable } from '../components/AnalysisTable'
 import {
   ANALYSIS_TABLE_SELECT,
   emptyRow,
-  ERROR_INFO_SELECT,
   normalizeRow,
   RECENT_RANGES,
   recentSince,
@@ -24,7 +23,7 @@ import {
   type RecentRange,
 } from '../lib/analysisTable'
 import { scoreBorderClass } from '../lib/score'
-import { generateAnalysisPdf } from '../utils/pdfExport'
+import { addTickersToWatchlist, attachErrorInfo, downloadAnalysisPdf } from '../lib/analysisData'
 import { MAX_AGE_OPTIONS, maxAgeCostHint, readMaxAge, storeMaxAge, type MaxAge } from '../lib/preferences'
 
 
@@ -117,28 +116,6 @@ export function DashboardPage() {
     }
   }, [user])
 
-  // Zeilen mit status 'error' (z.B. FDXF, HONA, SPCX): Code und oeffentliche
-  // Meldung aus stock_analyses nachladen, damit die Tabelle "nicht
-  // bewertbar" statt "Fehler" zeigen kann. Betrifft nur wenige Zeilen.
-  async function withErrorInfo(rows: AnalysisTableRow[]): Promise<AnalysisTableRow[]> {
-    const errorTickers = rows.filter((r) => r.status === 'error').map((r) => r.ticker)
-    if (errorTickers.length === 0) return rows
-    const { data, error } = await supabase.from('stock_analyses').select(ERROR_INFO_SELECT).in('ticker', errorTickers)
-    if (error) {
-      console.error('Fehlerinfo konnte nicht geladen werden:', error.message)
-      return rows
-    }
-    const info = new Map(
-      ((data ?? []) as { ticker: string; last_run_error_code: string | null; last_run_error_public: string | null }[]).map(
-        (d) => [d.ticker, d],
-      ),
-    )
-    return rows.map((r) => {
-      const i = info.get(r.ticker)
-      return i ? { ...r, error_code: i.last_run_error_code, error_public: i.last_run_error_public } : r
-    })
-  }
-
   // Schlanke Abfrage ueber die View analysis_ranking: nur einzelne Werte,
   // keine ganzen JSON-Spalten (vorher stock_analyses(*), ~52 kB je Zeile).
   async function loadRecent(range: RecentRange = recentRange) {
@@ -149,7 +126,7 @@ export function DashboardPage() {
       .gt('analysed_at', recentSince(range, Date.now()))
       .order('analysed_at', { ascending: false })
     if (error) console.error('Letzte Analysen konnten nicht geladen werden:', error.message)
-    setRecent(await withErrorInfo(((data ?? []) as unknown as Record<string, unknown>[]).map(normalizeRow)))
+    setRecent(await attachErrorInfo(((data ?? []) as unknown as Record<string, unknown>[]).map(normalizeRow)))
     setRecentLoading(false)
   }
 
@@ -183,7 +160,7 @@ export function DashboardPage() {
         byTicker.set(row.ticker, row)
       }
     }
-    const rowsWithInfo = await withErrorInfo(list.map((e) => byTicker.get(e.ticker) ?? emptyRow(e.ticker)))
+    const rowsWithInfo = await attachErrorInfo(list.map((e) => byTicker.get(e.ticker) ?? emptyRow(e.ticker)))
     setWatchlist(list.map((e, i) => ({ ...e, row: rowsWithInfo[i] })))
     setWatchlistLoading(false)
   }
@@ -196,14 +173,10 @@ export function DashboardPage() {
     if (toAdd.length === 0) return
     setRecentAddBusy(true)
     setRecentAddError(null)
-    const now = new Date().toISOString()
-    const { error } = await supabase
-      .from('watchlists')
-      .insert(toAdd.map((ticker) => ({ user_id: user.id, ticker, analysis_id: null, added_at: now })))
+    const error = await addTickersToWatchlist(user.id, toAdd)
     setRecentAddBusy(false)
     if (error) {
-      console.error('Watchlist insert fehlgeschlagen:', error)
-      setRecentAddError(error.message)
+      setRecentAddError(error)
       return
     }
     setRecentPicked(new Set())
@@ -268,17 +241,8 @@ export function DashboardPage() {
     setDownloadError(null)
     setDownloadingTicker(ticker)
     try {
-      const { data, error } = await supabase
-        .from('stock_analyses')
-        .select('*')
-        .eq('ticker', ticker)
-        .maybeSingle()
-      if (error || !data) {
-        console.error('PDF-Download fehlgeschlagen (vollständige Analyse konnte nicht geladen werden):', error)
-        setDownloadError(`PDF für ${ticker} konnte nicht erstellt werden.`)
-        return
-      }
-      generateAnalysisPdf(data)
+      const error = await downloadAnalysisPdf(ticker)
+      if (error) setDownloadError(error)
     } finally {
       setDownloadingTicker(null)
     }
