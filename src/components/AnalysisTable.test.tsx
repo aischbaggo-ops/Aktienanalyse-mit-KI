@@ -23,6 +23,7 @@ const rows = [
     score_qualitaet: 100,
     score_krise: 74,
     score_trend: 63,
+    methodik_version: 2,
   }),
   row('V', { score_total: 87, news_status: 'blocked', ko_count: 0 }),
   row('BA', { score_total: 48, ko_count: 2 }),
@@ -69,7 +70,7 @@ describe('AnalysisTable', () => {
     expect(html).toContain('aria-sort="descending"')
     expect(html).toContain('Score ▼')
     expect(html).toContain('title="Krisenstabilität"')
-    for (const h of ['Ticker', 'Name', 'Sektor / Branche', 'Marktkap.', 'Kurs', 'Analyse vom', 'Einschätzung', 'Fund.', 'Qual.', 'Krise', 'Trend', 'Hinweise', 'Analyse']) {
+    for (const h of ['Ticker', 'Name', 'Sektor / Branche', 'Marktkap.', 'Kurs', 'Analyse vom', 'Methodik', 'Einschätzung', 'Fund.', 'Qual.', 'Krise', 'Trend', 'Hinweise', 'Analyse']) {
       expect(html).toContain(`>${h}`)
     }
   })
@@ -86,6 +87,7 @@ describe('AnalysisTable', () => {
     expect(html).toContain('Stark')
     expect(html).toContain('Durchschnittlich')
     expect(html).toContain('>98<')
+    expect(html).toContain('>v2<')
     expect(html).toContain('nicht bewertbar (zu kurze Kurshistorie)')
     expect(html).toContain('title="Gesamtscore nicht berechenbar (fehlend: Krise, Trend). Ursache: zu kurze Kurshistorie.')
     expect(html).toMatch(/>–</)

@@ -42,6 +42,7 @@ const COLUMNS: Column[] = [
   { id: 'market_cap', label: 'Marktkap.', title: 'Marktkapitalisierung (FMP, nur Anzeige)', sortKey: 'market_cap', width: 110, align: 'right' },
   { id: 'price', label: 'Kurs', title: 'Kurs zum Analysezeitpunkt (FMP, nur Anzeige)', sortKey: 'price', width: 100, align: 'right' },
   { id: 'analysed_at', label: 'Analyse vom', sortKey: 'analysed_at', width: 100 },
+  { id: 'methodik', label: 'Methodik', title: 'Version der Bewertungsmethodik (2 seit 08.10.2026)', sortKey: 'methodik_version', width: 76, align: 'center' },
   { id: 'score_total', label: 'Score', title: 'Gesamtscore', sortKey: 'score_total', width: 70, align: 'center' },
   { id: 'assessment', label: 'Einschätzung', width: 130 },
   { id: 'score_fundamental', label: 'Fund.', title: 'Fundamental', sortKey: 'score_fundamental', width: 64, align: 'center' },
@@ -476,6 +477,9 @@ const TableRow = memo(function TableRow({
             !
           </span>
         )}
+      </td>
+      <td className="px-2 py-1.5 text-center text-xs text-memo-muted" title={r.methodik_version != null ? `Methodik ${r.methodik_version}` : undefined}>
+        {r.methodik_version != null ? `v${r.methodik_version}` : '–'}
       </td>
       <td className="px-2 py-1.5 text-center">
         <ScoreBadge score={r.score_total} title="Gesamtscore" />

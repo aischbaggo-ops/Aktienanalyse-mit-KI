@@ -27,6 +27,7 @@ export const ANALYSIS_TABLE_SELECT = [
   'no_go_hart',
   'ko_count',
   'news_status',
+  'methodik_version',
 ].join(', ')
 
 export interface AnalysisTableRow {
@@ -51,6 +52,9 @@ export interface AnalysisTableRow {
   no_go_hart: boolean | null
   ko_count: number | null
   news_status: string | null
+  // Bewertungsmethodik der gespeicherten Analyse (2 seit #35; aeltere Zeilen
+  // ohne data_flags liefert die View als 1).
+  methodik_version: number | null
   // Nur fuer Zeilen mit status 'error', separat aus stock_analyses geladen
   // (die View enthaelt bewusst keine Fehlertexte), siehe ERROR_INFO_SELECT.
   error_code?: string | null
@@ -99,6 +103,7 @@ export function emptyRow(ticker: string): AnalysisTableRow {
     no_go_hart: null,
     ko_count: null,
     news_status: null,
+    methodik_version: null,
   }
 }
 
@@ -122,6 +127,7 @@ export function normalizeRow(raw: Record<string, unknown>): AnalysisTableRow {
     score_krise: toNum(raw.score_krise),
     score_trend: toNum(raw.score_trend),
     ko_count: toNum(raw.ko_count),
+    methodik_version: toNum(raw.methodik_version),
   }
 }
 
@@ -137,6 +143,7 @@ export type SortKey =
   | 'score_qualitaet'
   | 'score_krise'
   | 'score_trend'
+  | 'methodik_version'
 
 export interface SortState {
   key: SortKey

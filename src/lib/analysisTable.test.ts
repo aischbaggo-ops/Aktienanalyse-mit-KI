@@ -128,3 +128,16 @@ describe('Einschätzung ohne Gesamtscore', () => {
     expect(assessmentText(row('Z', 72)).text).toBe('Solide')
   })
 })
+
+describe('Spalte Methodik', () => {
+  it('wird geladen, als Zahl gelesen und ist sortierbar (ohne Wert am Ende)', () => {
+    expect(ANALYSIS_TABLE_SELECT.split(',').map((c) => c.trim())).toContain('methodik_version')
+    expect(normalizeRow({ ticker: 'X', methodik_version: '2' }).methodik_version).toBe(2)
+    const list = [
+      row('A', 60, { methodik_version: 1 }),
+      row('B', 70, { methodik_version: 2 }),
+      row('C', 80, { methodik_version: null }),
+    ]
+    expect(applyTableView(list, EMPTY_FILTER, { key: 'methodik_version', dir: 'desc' }).map((r) => r.ticker)).toEqual(['B', 'A', 'C'])
+  })
+})
