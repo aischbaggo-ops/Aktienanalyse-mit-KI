@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   applyTableView,
+  assessmentText,
   ASSESSMENTS,
   DEFAULT_SORT,
   formatDate,
@@ -15,7 +16,8 @@ import {
   type SortState,
 } from '../lib/analysisTable'
 import { formatMarketCap } from '../lib/memoFormat'
-import { scoreBandFill, scoreBandHex, scoreLabel, scoreLabelColorClass } from '../lib/score'
+import { scoreBandFill, scoreBandHex, scoreLabelColorClass } from '../lib/score'
+import { deselectShown, headerState, selectShown, toggleSelection } from '../lib/selection'
 
 // Gemeinsame Analyse-Tabelle: Watchlist (Ansicht "Tabelle"), "Letzte
 // Analysen" und spaeter "Alle Analysen". Suche, Filter, Sortierung per
@@ -97,8 +99,8 @@ export function AnalysisTable({
   rows,
   storageKey,
   selected,
-  onToggle,
-  onSelectShown,
+  onSelectionChange,
+  maxSelection,
   selectionDisabled,
   isRowLocked,
   rowTag,
@@ -112,8 +114,9 @@ export function AnalysisTable({
   // Schluessel fuer gespeicherte Spaltenbreiten/Umbruch je Einsatzort.
   storageKey: string
   selected: Set<string>
-  onToggle: (ticker: string) => void
-  onSelectShown: (tickers: string[]) => void
+  onSelectionChange: (next: Set<string>) => void
+  // Obergrenze der Auswahl (Watchlist: MAX_BATCH_SIZE fuer den Batch).
+  maxSelection?: number
   selectionDisabled?: boolean
   // Zeile nicht auswaehlbar (z.B. schon auf der Watchlist).
   isRowLocked?: (ticker: string) => boolean
@@ -133,6 +136,7 @@ export function AnalysisTable({
   const [truncate, setTruncate] = useState(() => readTruncate(storageKey))
   const [widths, setWidths] = useState<Record<string, number>>(() => readWidths(storageKey))
   const drag = useRef<{ id: string; startX: number; startWidth: number } | null>(null)
+  const [cappedNote, setCappedNote] = useState(false)
 
   useEffect(() => {
     function onMove(e: MouseEvent) {
@@ -159,6 +163,22 @@ export function AnalysisTable({
 
   const shown = applyTableView(rows, { search, assessment, minScore: parseMinScore(minScoreInput) }, sort)
   const selectable = shown.filter((r) => !isRowLocked?.(r.ticker)).map((r) => r.ticker)
+  const header = headerState(selected, selectable)
+  const max = maxSelection ?? Infinity
+
+  function apply(result: { next: Set<string>; capped: boolean }) {
+    setCappedNote(result.capped)
+    onSelectionChange(result.next)
+  }
+
+  function toggleHeader() {
+    if (header === 'all') {
+      setCappedNote(false)
+      onSelectionChange(deselectShown(selected, selectable))
+    } else {
+      apply(selectShown(selected, selectable, max))
+    }
+  }
   const tableWidth = COLUMNS.reduce((s, c) => s + (widths[c.id] ?? c.width), 0)
   const filtersActive = search !== '' || assessment !== '' || minScoreInput !== ''
   const cellText = truncate ? 'truncate whitespace-nowrap' : 'whitespace-normal break-words'
@@ -237,12 +257,28 @@ export function AnalysisTable({
       </div>
 
       <div className="mb-1 flex flex-wrap items-center justify-end gap-2">
+        <span className="mr-auto text-xs text-memo-muted">
+          {selected.size} ausgewählt{maxSelection ? ` (max. ${maxSelection})` : ''}
+          {cappedNote && maxSelection && (
+            <span className="ml-2 text-memo-minusText">Höchstens {maxSelection} pro Batch-Lauf, Rest nicht ausgewählt.</span>
+          )}
+        </span>
         <button
-          onClick={() => onSelectShown(selectable)}
-          disabled={selectionDisabled || selectable.length === 0}
+          onClick={() => apply(selectShown(selected, selectable, max))}
+          disabled={selectionDisabled || selectable.length === 0 || header === 'all'}
           className="rounded-md border border-memo-line px-3 py-1 text-xs font-medium text-memo-muted transition-colors hover:border-memo-ink hover:text-memo-ink disabled:opacity-50"
         >
           Alle angezeigten auswählen
+        </button>
+        <button
+          onClick={() => {
+            setCappedNote(false)
+            onSelectionChange(new Set())
+          }}
+          disabled={selectionDisabled || selected.size === 0}
+          className="rounded-md border border-memo-line px-3 py-1 text-xs font-medium text-memo-muted transition-colors hover:border-memo-ink hover:text-memo-ink disabled:opacity-50"
+        >
+          Auswahl aufheben
         </button>
         {actions}
       </div>
@@ -268,7 +304,19 @@ export function AnalysisTable({
                       c.align === 'right' ? 'text-right' : c.align === 'center' ? 'text-center' : 'text-left'
                     }`}
                   >
-                    {c.sortKey ? (
+                    {c.id === 'select' ? (
+                      <input
+                        type="checkbox"
+                        checked={header === 'all'}
+                        ref={(el) => {
+                          if (el) el.indeterminate = header === 'some'
+                        }}
+                        disabled={selectionDisabled || selectable.length === 0}
+                        onChange={toggleHeader}
+                        aria-label="Alle angezeigten aus- oder abwählen"
+                        className="h-4 w-4 accent-navy-700"
+                      />
+                    ) : c.sortKey ? (
                       <button
                         onClick={() => setSort((s) => nextSort(s, c.sortKey!))}
                         className={`truncate hover:text-memo-ink ${active ? 'text-memo-ink' : ''}`}
@@ -301,6 +349,7 @@ export function AnalysisTable({
               const tag = rowTag?.(r.ticker) ?? null
               const highlighted = highlightedTicker === r.ticker
               const marketCap = formatMarketCap(r.market_cap, r.currency)
+              const assessment = assessmentText(r)
               return (
                 <tr key={r.ticker} className={`hover:bg-memo-paper ${highlighted ? 'bg-memo-paper' : ''}`}>
                   <td className="px-2 py-1.5 text-center">
@@ -312,10 +361,11 @@ export function AnalysisTable({
                     ) : (
                       <input
                         type="checkbox"
-                        checked={locked || selected.has(r.ticker)}
+                        checked={!locked && selected.has(r.ticker)}
                         disabled={locked || selectionDisabled}
-                        onChange={() => onToggle(r.ticker)}
-                        aria-label={`${r.ticker} auswählen`}
+                        onChange={() => apply(toggleSelection(selected, r.ticker, max))}
+                        aria-label={locked ? `${r.ticker} (gesperrt)` : `${r.ticker} auswählen`}
+                        title={locked ? (tag ?? 'gesperrt') : undefined}
                         className="h-4 w-4 accent-navy-700"
                       />
                     )}
@@ -357,8 +407,11 @@ export function AnalysisTable({
                   <td className="px-2 py-1.5 text-center">
                     <ScoreBadge score={r.score_total} title="Gesamtscore" />
                   </td>
-                  <td className={`px-2 py-1.5 text-xs font-semibold ${scoreLabelColorClass(r.score_total)} ${cellText}`}>
-                    {r.score_total == null ? (r.status === 'error' ? 'Fehler' : '–') : scoreLabel(r.score_total)}
+                  <td
+                    className={`px-2 py-1.5 text-xs font-semibold ${scoreLabelColorClass(r.score_total)} ${cellText}`}
+                    title={assessment.title}
+                  >
+                    {assessment.text}
                   </td>
                   <td className="px-2 py-1.5 text-center">
                     <ScoreBadge score={r.score_fundamental} title="Fundamental" />

@@ -26,7 +26,12 @@ const rows = [
   }),
   row('V', { score_total: 87, news_status: 'blocked', ko_count: 0 }),
   row('BA', { score_total: 48, ko_count: 2 }),
-  row('FDXF', { status: 'error', score_total: null }),
+  row('FDXF', {
+    status: 'error',
+    score_total: null,
+    error_code: 'score_incomplete',
+    error_public: 'Gesamtscore nicht berechenbar (fehlend: Krise, Trend). Ursache: zu kurze Kurshistorie. KI-Analyse wurde nicht gestartet.',
+  }),
 ]
 
 const html = renderToStaticMarkup(
@@ -34,8 +39,8 @@ const html = renderToStaticMarkup(
     rows={rows}
     storageKey="test"
     selected={new Set(['COST'])}
-    onToggle={() => {}}
-    onSelectShown={() => {}}
+    onSelectionChange={() => {}}
+    maxSelection={100}
     isRowLocked={(t) => t === 'V'}
     rowTag={(t) => (t === 'V' ? 'auf Watchlist' : null)}
     onOpenTicker={() => {}}
@@ -53,6 +58,8 @@ describe('AnalysisTable', () => {
       'Spaltenbreiten zurücksetzen',
       '4 von 4 angezeigt',
       'Alle angezeigten auswählen',
+      'Auswahl aufheben',
+      '1 ausgewählt (max. 100)',
     ]) {
       expect(html).toContain(text)
     }
@@ -79,7 +86,8 @@ describe('AnalysisTable', () => {
     expect(html).toContain('Stark')
     expect(html).toContain('Durchschnittlich')
     expect(html).toContain('>98<')
-    expect(html).toContain('Fehler')
+    expect(html).toContain('nicht bewertbar (zu kurze Kurshistorie)')
+    expect(html).toContain('title="Gesamtscore nicht berechenbar (fehlend: Krise, Trend). Ursache: zu kurze Kurshistorie.')
     expect(html).toMatch(/>–</)
   })
 
@@ -93,5 +101,43 @@ describe('AnalysisTable', () => {
     expect(html.match(/Öffnen/g)).toHaveLength(4)
     expect(html.match(/PDF für/g)?.length).toBe(6) // 3 Zeilen mit Score: title + aria-label
     expect(html).not.toContain('PDF für FDXF')
+  })
+})
+
+describe('AnalysisTable: Auswahl', () => {
+  const render = (selected: Set<string>) =>
+    renderToStaticMarkup(
+      <AnalysisTable
+        rows={rows}
+        storageKey="test"
+        selected={selected}
+        onSelectionChange={() => {}}
+        isRowLocked={(t) => t === 'V'}
+        rowTag={(t) => (t === 'V' ? 'auf Watchlist' : null)}
+        onOpenTicker={() => {}}
+      />,
+    )
+  const boxes = (html: string) =>
+    // nur Zeilen-Checkboxen (nicht Kopfzeile, nicht "Text abschneiden")
+    (html.match(/<input type="checkbox"[^>]*>/g) ?? []).filter((b) => / auswählen"| \(gesperrt\)"/.test(b))
+
+  it('startet leer: keine Zeile angehakt, auch nicht die gesperrte Watchlist-Zeile', () => {
+    const html = render(new Set())
+    expect(boxes(html).some((b) => b.includes('checked'))).toBe(false)
+    expect(html).toContain('0 ausgewählt')
+  })
+
+  it('gesperrte Zeile ist deaktiviert und nicht angehakt, andere bleiben umschaltbar', () => {
+    const html = render(new Set(['COST']))
+    const v = boxes(html).find((b) => b.includes('V (gesperrt)'))!
+    expect(v).toContain('disabled')
+    expect(v).not.toContain('checked')
+    const cost = boxes(html).find((b) => b.includes('COST auswählen'))!
+    expect(cost).toContain('checked')
+    expect(cost).not.toContain('disabled')
+  })
+
+  it('Kopfzeilen-Checkbox für alle/keine der angezeigten', () => {
+    expect(render(new Set())).toContain('aria-label="Alle angezeigten aus- oder abwählen"')
   })
 })

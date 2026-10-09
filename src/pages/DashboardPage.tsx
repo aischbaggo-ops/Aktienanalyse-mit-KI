@@ -7,6 +7,8 @@ import { SymbolSearch } from '../components/SymbolSearch'
 import { FeatureTile } from '../components/FeatureTile'
 import { useFeatureAccess } from '../hooks/useFeatureAccess'
 import { useBatchAnalysis } from '../hooks/useBatchAnalysis'
+import { MAX_BATCH_SIZE } from '../utils/batchEstimate'
+import { toggleSelection } from '../lib/selection'
 import { BatchSelectionPanel } from '../components/BatchSelectionPanel'
 import { IndexSelectionPanel } from '../components/IndexSelectionPanel'
 import { BatchStatusPanel } from '../components/BatchStatusPanel'
@@ -14,6 +16,7 @@ import { AnalysisTable } from '../components/AnalysisTable'
 import {
   ANALYSIS_TABLE_SELECT,
   emptyRow,
+  ERROR_INFO_SELECT,
   normalizeRow,
   RECENT_RANGES,
   recentSince,
@@ -80,6 +83,7 @@ export function DashboardPage() {
   const [watchlistLoading, setWatchlistLoading] = useState(true)
   const [watchlistView, setWatchlistView] = useState<WatchlistView>(readWatchlistView)
   const [selectedTickers, setSelectedTickers] = useState<Set<string>>(new Set())
+  const [watchlistBatchError, setWatchlistBatchError] = useState<string | null>(null)
 
   const [downloadingTicker, setDownloadingTicker] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
@@ -117,6 +121,28 @@ export function DashboardPage() {
     }
   }, [user])
 
+  // Zeilen mit status 'error' (z.B. FDXF, HONA, SPCX): Code und oeffentliche
+  // Meldung aus stock_analyses nachladen, damit die Tabelle "nicht
+  // bewertbar" statt "Fehler" zeigen kann. Betrifft nur wenige Zeilen.
+  async function withErrorInfo(rows: AnalysisTableRow[]): Promise<AnalysisTableRow[]> {
+    const errorTickers = rows.filter((r) => r.status === 'error').map((r) => r.ticker)
+    if (errorTickers.length === 0) return rows
+    const { data, error } = await supabase.from('stock_analyses').select(ERROR_INFO_SELECT).in('ticker', errorTickers)
+    if (error) {
+      console.error('Fehlerinfo konnte nicht geladen werden:', error.message)
+      return rows
+    }
+    const info = new Map(
+      ((data ?? []) as { ticker: string; last_run_error_code: string | null; last_run_error_public: string | null }[]).map(
+        (d) => [d.ticker, d],
+      ),
+    )
+    return rows.map((r) => {
+      const i = info.get(r.ticker)
+      return i ? { ...r, error_code: i.last_run_error_code, error_public: i.last_run_error_public } : r
+    })
+  }
+
   // Schlanke Abfrage ueber die View analysis_ranking: nur einzelne Werte,
   // keine ganzen JSON-Spalten (vorher stock_analyses(*), ~52 kB je Zeile).
   async function loadRecent(range: RecentRange = recentRange) {
@@ -127,7 +153,7 @@ export function DashboardPage() {
       .gt('analysed_at', recentSince(range, Date.now()))
       .order('analysed_at', { ascending: false })
     if (error) console.error('Letzte Analysen konnten nicht geladen werden:', error.message)
-    setRecent(((data ?? []) as unknown as Record<string, unknown>[]).map(normalizeRow))
+    setRecent(await withErrorInfo(((data ?? []) as unknown as Record<string, unknown>[]).map(normalizeRow)))
     setRecentLoading(false)
   }
 
@@ -161,7 +187,8 @@ export function DashboardPage() {
         byTicker.set(row.ticker, row)
       }
     }
-    setWatchlist(list.map((e) => ({ ...e, row: byTicker.get(e.ticker) ?? emptyRow(e.ticker) })))
+    const rowsWithInfo = await withErrorInfo(list.map((e) => byTicker.get(e.ticker) ?? emptyRow(e.ticker)))
+    setWatchlist(list.map((e, i) => ({ ...e, row: rowsWithInfo[i] })))
     setWatchlistLoading(false)
   }
 
@@ -187,15 +214,6 @@ export function DashboardPage() {
     loadWatchlist()
   }
 
-  function toggleRecent(ticker: string) {
-    setRecentPicked((prev) => {
-      const next = new Set(prev)
-      if (next.has(ticker)) next.delete(ticker)
-      else next.add(ticker)
-      return next
-    })
-  }
-
   function changeWatchlistView(view: WatchlistView) {
     setWatchlistView(view)
     try {
@@ -205,28 +223,33 @@ export function DashboardPage() {
     }
   }
 
-  // "Alle angezeigten auswählen" in der Watchlist-Tabelle: ergaenzt die
-  // Batch-Auswahl um die gerade angezeigten (gefilterten) Ticker.
-  function selectTickers(tickers: string[]) {
-    if (batch.phase !== 'idle') return
-    setSelectedTickers((prev) => new Set([...prev, ...tickers]))
-  }
-
   // Watchlist-Batch erzwingt weiterhin frische Laeufe (bisheriges Verhalten):
   // wer bewusst Watchlist-Werte auswaehlt, will aktuelle Ergebnisse. Der
   // Index-/Freitext-Batch nutzt dagegen den 7-Tage-Cache.
   async function startWatchlistBatch() {
-    await batch.prepare([...selectedTickers], { forceRefresh: true })
+    setWatchlistBatchError(null)
+    // prepare() lehnt mehr als MAX_BATCH_SIZE ab - die Meldung anzeigen statt
+    // still nichts zu tun.
+    const err = await batch.prepare([...selectedTickers], { forceRefresh: true })
+    if (err) setWatchlistBatchError(err)
   }
 
+  // Auswahl gesperrt, solange ein Batch bestaetigt wird oder laeuft. Nach
+  // dem Ende ("done") ist sie wieder frei.
+  const batchBusy = batch.phase === 'confirming' || batch.phase === 'running' || batch.phase === 'paused'
+
+  function changeWatchlistSelection(next: Set<string>) {
+    if (batchBusy) return
+    setWatchlistBatchError(null)
+    setSelectedTickers(next)
+  }
+
+  // Karten-Ansicht: einzelne Kachel umschalten, gleiche Obergrenze wie die Tabelle.
   function toggleTicker(ticker: string) {
-    if (batch.phase !== 'idle') return
-    setSelectedTickers((prev) => {
-      const next = new Set(prev)
-      if (next.has(ticker)) next.delete(ticker)
-      else next.add(ticker)
-      return next
-    })
+    if (batchBusy) return
+    const { next, capped } = toggleSelection(selectedTickers, ticker, MAX_BATCH_SIZE)
+    setWatchlistBatchError(capped ? `Höchstens ${MAX_BATCH_SIZE} Werte pro Batch-Lauf.` : null)
+    setSelectedTickers(next)
   }
 
   // Verhindert versehentliches Verlassen der Seite waehrend ein Batch
@@ -412,8 +435,7 @@ export function DashboardPage() {
               rows={recent}
               storageKey="dashboard.recent"
               selected={recentPicked}
-              onToggle={toggleRecent}
-              onSelectShown={(tickers) => setRecentPicked(new Set(tickers))}
+              onSelectionChange={setRecentPicked}
               isRowLocked={(t) => watchlistTickerSet.has(t)}
               rowTag={(t) => (watchlistTickerSet.has(t) ? 'auf Watchlist' : null)}
               onOpenTicker={navigateToAnalyse}
@@ -457,15 +479,19 @@ export function DashboardPage() {
           )}
           {selectedTickers.size > 0 && batch.phase === 'idle' && (
             <>
-              <span className="text-xs text-memo-muted">{selectedTickers.size} ausgewählt</span>
+              <span className="text-xs text-memo-muted">
+                {selectedTickers.size} ausgewählt (max. {MAX_BATCH_SIZE} pro Lauf)
+              </span>
               <button
                 onClick={startWatchlistBatch}
-                className="rounded-md border border-memo-line px-3 py-1 text-xs font-medium text-memo-ink transition-colors hover:border-memo-ink"
+                disabled={selectedTickers.size > MAX_BATCH_SIZE}
+                className="rounded-md border border-memo-line px-3 py-1 text-xs font-medium text-memo-ink transition-colors hover:border-memo-ink disabled:opacity-50"
               >
                 Batch-Analyse starten
               </button>
             </>
           )}
+          {watchlistBatchError && <span className="text-xs text-memo-minusText">{watchlistBatchError}</span>}
         </div>
 
         {batch.forceRefresh && (
@@ -489,9 +515,9 @@ export function DashboardPage() {
             rows={watchlist.map((w) => w.row)}
             storageKey="dashboard.watchlist"
             selected={selectedTickers}
-            onToggle={toggleTicker}
-            onSelectShown={selectTickers}
-            selectionDisabled={batch.phase !== 'idle'}
+            onSelectionChange={changeWatchlistSelection}
+            maxSelection={MAX_BATCH_SIZE}
+            selectionDisabled={batchBusy}
             onOpenTicker={navigateToAnalyse}
             onDownloadPdf={handleDownloadPdf}
             downloadingTicker={downloadingTicker}

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ANALYSIS_TABLE_SELECT,
   applyTableView,
+  assessmentText,
   DEFAULT_SORT,
   EMPTY_FILTER,
   emptyRow,
@@ -110,5 +111,20 @@ describe('Daten', () => {
     expect(formatPrice(null, 'USD')).toBe('–')
     expect(formatPrice(412.5, 'USD')).toBe('412,50 USD')
     expect(recentSince('7d', Date.parse('2026-10-08T12:00:00Z'))).toBe('2026-10-01T12:00:00.000Z')
+  })
+})
+
+describe('Einschätzung ohne Gesamtscore', () => {
+  it('zu kurze Kurshistorie: "nicht bewertbar" mit Ursache und Tooltip, sonst Fehler', () => {
+    const msg = 'Gesamtscore nicht berechenbar (fehlend: Krise, Trend). Ursache: zu kurze Kurshistorie. KI-Analyse wurde nicht gestartet.'
+    expect(assessmentText(row('FDXF', null, { status: 'error', error_code: 'score_incomplete', error_public: msg }))).toEqual({
+      text: 'nicht bewertbar (zu kurze Kurshistorie)',
+      title: msg,
+    })
+    expect(
+      assessmentText(row('X', null, { status: 'error', error_code: 'score_incomplete', error_public: 'Ursache: FMP-Plan' })).text,
+    ).toBe('nicht bewertbar')
+    expect(assessmentText(row('Y', null, { status: 'error', error_code: 'llm_error', error_public: null })).text).toBe('Fehler')
+    expect(assessmentText(row('Z', 72)).text).toBe('Solide')
   })
 })

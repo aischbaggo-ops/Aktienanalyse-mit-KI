@@ -51,6 +51,29 @@ export interface AnalysisTableRow {
   no_go_hart: boolean | null
   ko_count: number | null
   news_status: string | null
+  // Nur fuer Zeilen mit status 'error', separat aus stock_analyses geladen
+  // (die View enthaelt bewusst keine Fehlertexte), siehe ERROR_INFO_SELECT.
+  error_code?: string | null
+  error_public?: string | null
+}
+
+// Fehlerinfo fuer die wenigen Zeilen mit status 'error' (z.B. FDXF, HONA,
+// SPCX): Code und oeffentliche Meldung, kein interner Rohtext.
+export const ERROR_INFO_SELECT = 'ticker, last_run_error_code, last_run_error_public'
+
+// Text der Spalte "Einschätzung" und Tooltip. Ohne Gesamtscore:
+// - score_incomplete (fehlende Teilscores, z.B. zu junge Notierung):
+//   "nicht bewertbar", mit Ursache aus der oeffentlichen Meldung
+// - sonst: "Fehler"
+export function assessmentText(r: AnalysisTableRow): { text: string; title?: string } {
+  if (r.score_total != null) return { text: scoreLabel(r.score_total) }
+  if (r.status !== 'error') return { text: '–' }
+  const msg = r.error_public ?? undefined
+  if (r.error_code === 'score_incomplete') {
+    const tooShort = msg?.includes('zu kurze Kurshistorie')
+    return { text: tooShort ? 'nicht bewertbar (zu kurze Kurshistorie)' : 'nicht bewertbar', title: msg }
+  }
+  return { text: 'Fehler', title: msg }
 }
 
 // Zeile fuer einen Ticker ohne gespeicherte Analyse (z.B. frisch auf der
