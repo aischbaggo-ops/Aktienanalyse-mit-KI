@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   ANALYSIS_TABLE_SELECT,
+  ALL_ANALYSES_SELECT,
   applyTableView,
   assessmentText,
+  filterByIndex,
   DEFAULT_SORT,
   EMPTY_FILTER,
   emptyRow,
@@ -139,5 +141,32 @@ describe('Spalte Methodik', () => {
       row('C', 80, { methodik_version: null }),
     ]
     expect(applyTableView(list, EMPTY_FILTER, { key: 'methodik_version', dir: 'desc' }).map((r) => r.ticker)).toEqual(['B', 'A', 'C'])
+  })
+})
+
+describe('Alle Analysen: Index-Filter', () => {
+  const list = [
+    row('AAPL', 69, { indices: ['dowjones', 'nasdaq100', 'sp500'] }),
+    row('ASML', null, { indices: ['nasdaq100'] }),
+    row('ERIE', 87, { indices: ['sp500'] }),
+    row('SLS', 26, { indices: null }), // Testeintrag ohne Index
+  ]
+  const t = (r: AnalysisTableRow[]) => r.map((x) => x.ticker)
+
+  it('Standard "US-Indizes" blendet Analysen ohne Index (SLS) aus', () => {
+    expect(t(filterByIndex(list, 'us'))).toEqual(['AAPL', 'ASML', 'ERIE'])
+  })
+
+  it('einzelne Indizes und "alle"', () => {
+    expect(t(filterByIndex(list, 'sp500'))).toEqual(['AAPL', 'ERIE'])
+    expect(t(filterByIndex(list, 'nasdaq100'))).toEqual(['AAPL', 'ASML'])
+    expect(t(filterByIndex(list, 'dowjones'))).toEqual(['AAPL'])
+    expect(filterByIndex(list, 'all')).toHaveLength(4)
+  })
+
+  it('laedt die Indexzugehoerigkeit zusaetzlich zu den Tabellenspalten', () => {
+    expect(ALL_ANALYSES_SELECT).toContain('indices')
+    expect(ALL_ANALYSES_SELECT).toContain('score_total')
+    expect(ALL_ANALYSES_SELECT).not.toMatch(/chart_data|criteria|\*/)
   })
 })

@@ -55,6 +55,9 @@ export interface AnalysisTableRow {
   // Bewertungsmethodik der gespeicherten Analyse (2 seit #35; aeltere Zeilen
   // ohne data_flags liefert die View als 1).
   methodik_version: number | null
+  // Indexzugehoerigkeit (sp500, nasdaq100, dowjones); nur auf "Alle
+  // Analysen" geladen (ALL_ANALYSES_SELECT).
+  indices?: string[] | null
   // Nur fuer Zeilen mit status 'error', separat aus stock_analyses geladen
   // (die View enthaelt bewusst keine Fehlertexte), siehe ERROR_INFO_SELECT.
   error_code?: string | null
@@ -240,4 +243,25 @@ export const RECENT_RANGES: { value: RecentRange; label: string; hours: number }
 export function recentSince(range: RecentRange, nowMs: number): string {
   const hours = RECENT_RANGES.find((r) => r.value === range)!.hours
   return new Date(nowMs - hours * 60 * 60 * 1000).toISOString()
+}
+
+// "Alle Analysen": Tabellenspalten plus Indexzugehoerigkeit.
+export const ALL_ANALYSES_SELECT = `${ANALYSIS_TABLE_SELECT}, indices`
+
+export type IndexFilter = 'us' | 'sp500' | 'nasdaq100' | 'dowjones' | 'all'
+
+export const INDEX_FILTERS: { value: IndexFilter; label: string }[] = [
+  { value: 'us', label: 'US-Indizes (S&P 500, NASDAQ 100, Dow Jones)' },
+  { value: 'sp500', label: 'S&P 500' },
+  { value: 'nasdaq100', label: 'NASDAQ 100' },
+  { value: 'dowjones', label: 'Dow Jones' },
+  { value: 'all', label: 'Alle, auch ohne Index (z. B. Tests)' },
+]
+
+// Standard "us": blendet Analysen ohne Indexzugehoerigkeit aus (z.B. den
+// Testeintrag SLS).
+export function filterByIndex(rows: AnalysisTableRow[], filter: IndexFilter): AnalysisTableRow[] {
+  if (filter === 'all') return rows
+  if (filter === 'us') return rows.filter((r) => (r.indices?.length ?? 0) > 0)
+  return rows.filter((r) => r.indices?.includes(filter) ?? false)
 }
