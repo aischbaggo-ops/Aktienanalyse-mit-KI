@@ -6,7 +6,8 @@ import { generateAnalysisPdf } from '../utils/pdfExport'
 import { scoreLabel, scoreLabelColorClass, scoreBandHex, scoreBandFill } from '../lib/score'
 import { dataSourceLabel, formatMarketCap } from '../lib/memoFormat'
 import { koWithoutNewsHint } from '../lib/dataFlags'
-import { formatAnalysisDate, needsPolling } from '../lib/analysisRun'
+import { formatAnalysisDate, isRefreshRunning, needsPolling } from '../lib/analysisRun'
+import { ReanalyzeButton } from '../components/ReanalyzeButton'
 import { RefreshNoticeBanner } from '../components/RefreshNoticeBanner'
 import { getIndexWeighting, type IndexWeighting } from '../lib/webhooks'
 import { InfoTooltip } from '../components/InfoTooltip'
@@ -38,6 +39,9 @@ export function AnalysePage() {
   const [activeTab, setActiveTab] = useState<TabKey>('quickcheck')
   const [indexWeightings, setIndexWeightings] = useState<IndexWeighting[]>([])
   const [descExpanded, setDescExpanded] = useState(false)
+  // Erhoeht nach "Neu analysieren": laedt neu und startet das Polling, auch
+  // wenn der Realtime-Kanal haengt.
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     if (!ticker) return
@@ -117,7 +121,7 @@ export function AnalysePage() {
       stopPolling()
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [ticker])
+  }, [ticker, reloadKey])
 
   useEffect(() => {
     if (!user || !ticker) return
@@ -223,12 +227,24 @@ export function AnalysePage() {
     )
   }
 
+  const reanalyze = (
+    <ReanalyzeButton
+      ticker={analysis.ticker}
+      accessToken={session?.access_token}
+      disabled={isRefreshRunning(analysis)}
+      onStarted={() => setReloadKey((k) => k + 1)}
+    />
+  )
+
   if (analysis.status === 'error') {
     return (
-      <div className="rounded-xl border border-ampel-red/40 bg-ampel-red/10 p-6 text-sm text-ampel-red">
-        {analysis.error_message_public
-          ? `Fehler: ${analysis.error_message_public}`
-          : `Bei der Analyse von ${ticker} ist ein Fehler aufgetreten. Bitte versuche es erneut.`}
+      <div className="space-y-3 rounded-xl border border-ampel-red/40 bg-ampel-red/10 p-6 text-sm text-ampel-red">
+        <p>
+          {analysis.error_message_public
+            ? `Fehler: ${analysis.error_message_public}`
+            : `Bei der Analyse von ${ticker} ist ein Fehler aufgetreten. Bitte versuche es erneut.`}
+        </p>
+        {reanalyze}
       </div>
     )
   }
@@ -363,6 +379,7 @@ export function AnalysePage() {
           >
             PDF herunterladen
           </button>
+          {reanalyze}
         </div>
         <span className="text-xs text-memo-muted">
           Aktualisiert: {formatAnalysisDate(analysis.updated_at)}
