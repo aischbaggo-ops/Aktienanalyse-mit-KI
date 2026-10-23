@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { TickerSelectionList } from './TickerSelectionList'
 import { MAX_BATCH_SIZE } from '../utils/batchEstimate'
 import { parseTickers } from '../utils/tickerParser'
-import { validateTickers } from '../lib/webhooks'
+import { validateTickers, type TickerKollision } from '../lib/webhooks'
+import { mitVorschlaegen, ohneVerdaechtige } from '../lib/tickerKollision'
 
 // Eingabe mehrerer Ticker per Freitext. Erkannte Ticker erscheinen als
 // Vorschau mit Checkboxen (alle vorausgewaehlt); "Analyse starten" reicht die
@@ -23,6 +24,7 @@ export function BatchSelectionPanel({
   const [validating, setValidating] = useState(false)
   const [rejected, setRejected] = useState<string[]>([])
   const [validationWarning, setValidationWarning] = useState<string | null>(null)
+  const [kollisionen, setKollisionen] = useState<TickerKollision[]>([])
 
   // Der Parser erkennt nur das FORMAT eines Tickers (Grossbuchstaben, 1-5
   // Zeichen, ...), nicht ob er wirklich existiert - "zzzz" oder ein
@@ -38,6 +40,7 @@ export function BatchSelectionPanel({
     setError(null)
     setRejected([])
     setValidationWarning(null)
+    setKollisionen([])
 
     if (!accessToken || tickers.length === 0) {
       setParsed(tickers)
@@ -47,13 +50,17 @@ export function BatchSelectionPanel({
 
     setValidating(true)
     try {
-      const valid = await validateTickers(tickers, accessToken)
+      const { valid, kollisionen: koll } = await validateTickers(tickers, accessToken)
       const validSet = new Set(valid)
       const invalid = tickers.filter((t) => !validSet.has(t))
       const confirmed = tickers.filter((t) => validSet.has(t))
+      // Verdaechtige Kuerzel bleiben in der Liste, aber NICHT in der
+      // Vorauswahl: ein Klick auf "Analyse starten" darf nicht aus Versehen
+      // 14 fremde Firmen analysieren (21.10.2026).
       setParsed(confirmed)
-      setSelected(new Set(confirmed))
+      setSelected(new Set(ohneVerdaechtige(confirmed, koll)))
       setRejected(invalid)
+      setKollisionen(koll)
     } catch (err) {
       // Fail-open: Pruefung selbst fehlgeschlagen (z.B. kein FMP-Key
       // hinterlegt) - Kandidaten bleiben ungeprueft nutzbar, nur ein
@@ -68,6 +75,18 @@ export function BatchSelectionPanel({
     } finally {
       setValidating(false)
     }
+  }
+
+  // Ersetzt die verdaechtigen Kuerzel durch die Schreibweise mit
+  // Boersenzusatz (ADS -> ADS.DE). Die Vorschlaege stammen aus
+  // index_constituents, sind also bereits bestaetigte Ticker und brauchen
+  // keine zweite Pruefung.
+  function handleUebernehmen() {
+    if (!parsed) return
+    const neu = mitVorschlaegen(parsed, kollisionen)
+    setParsed(neu)
+    setSelected(new Set(neu))
+    setKollisionen([])
   }
 
   async function handleStart() {
@@ -121,6 +140,40 @@ export function BatchSelectionPanel({
           {rejected.length === 1 ? 'konnte' : 'konnten'} nicht als gültiger Ticker bestätigt werden und{' '}
           {rejected.length === 1 ? 'wurde' : 'wurden'} entfernt: {rejected.join(', ')}
         </p>
+      )}
+
+      {kollisionen.length > 0 && (
+        <div className="mt-3 rounded-lg border border-ampel-yellow bg-amber-50 p-3">
+          <p className="text-sm font-medium text-navy-950">
+            {kollisionen.length === 1 ? 'Ein Kürzel ist' : `${kollisionen.length} Kürzel sind`} vermutlich
+            verwechselt
+          </p>
+          <p className="mt-1 text-xs text-memo-muted">
+            Ohne Börsenzusatz liefert FMP das gleichnamige US-Papier. Diese Einträge sind deshalb{' '}
+            <strong>nicht vorausgewählt</strong>.
+          </p>
+          <ul className="mt-2 space-y-1">
+            {kollisionen.map((k) => (
+              <li key={k.eingabe} className="text-xs text-memo-ink">
+                <span className="font-analyst">{k.eingabe}</span> ={' '}
+                {k.gefunden ?? 'unbekannt'}
+                {k.waehrung ? ` (${k.waehrung})` : ''} &rarr; gemeint war vermutlich{' '}
+                <span className="font-analyst">{k.vorschlag}</span>
+                {k.vorschlag_name ? ` - ${k.vorschlag_name}` : ''}
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            onClick={handleUebernehmen}
+            disabled={disabled}
+            className="mt-3 rounded-lg border border-memo-line bg-white px-4 py-2 text-sm font-medium text-memo-ink transition-colors hover:border-memo-ink disabled:opacity-50"
+          >
+            {kollisionen.length === 1
+              ? 'Vorschlag übernehmen'
+              : `Alle ${kollisionen.length} Vorschläge übernehmen`}
+          </button>
+        </div>
       )}
 
       {parsed && parsed.length > 0 && (

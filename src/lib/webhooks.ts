@@ -370,7 +370,25 @@ export function logEvent(eventType: string, status: LogEventStatus, details?: Re
 // einem echten Fehler (z.B. fehlender FMP-Key) - der Aufrufer entscheidet
 // dann selbst, ob er dem Nutzer die Meldung zeigt oder ungeprueft
 // fortfaehrt.
-export async function validateTickers(tickers: string[], accessToken: string): Promise<string[]> {
+// Ein gültiger Ticker, der aber vermutlich ein Versehen ist: ein deutsches
+// Kürzel ohne Börsenzusatz, zu dem FMP das gleichnamige US-Papier liefert
+// (siehe _shared/kollision.ts im Backend).
+export interface TickerKollision {
+  eingabe: string
+  gefunden: string | null
+  waehrung: string | null
+  land: string | null
+  vorschlag: string
+  vorschlag_name: string | null
+  meldung: string
+}
+
+export interface TickerValidation {
+  valid: string[]
+  kollisionen: TickerKollision[]
+}
+
+export async function validateTickers(tickers: string[], accessToken: string): Promise<TickerValidation> {
   const res = await fetch(VALIDATE_TICKERS_WEBHOOK_URL, {
     method: 'POST',
     headers: {
@@ -383,5 +401,8 @@ export async function validateTickers(tickers: string[], accessToken: string): P
   if (!res.ok || data.error) {
     throw new Error(data.error ?? `Ticker-Prüfung fehlgeschlagen (${res.status})`)
   }
-  return Array.isArray(data.valid) ? data.valid : []
+  return {
+    valid: Array.isArray(data.valid) ? data.valid : [],
+    kollisionen: Array.isArray(data.kollisionen) ? data.kollisionen : [],
+  }
 }
