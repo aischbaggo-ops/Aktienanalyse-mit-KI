@@ -8,16 +8,19 @@ export interface IndexOption {
   enabled: boolean
 }
 
-// enabled: false = DAX/MDAX/SDAX sind zurueckgestellt (Scope-Reduzierung
-// 2026-09-22): FMP deckt Deutschland/XETRA erst ab dem Ultimate-Plan
-// ($149/Monat) ab, SAP.DE/DTE.DE etc. liefern im aktuellen Plan
-// durchgehend HTTP 402 - das betrifft nicht nur die Index-Auswahl, sondern
-// JEDE Einzelanalyse eines deutschen Tickers (eigenstaendiges, separates
-// Thema). NICHT ohne geklaerte Datenquelle wieder auf true setzen - das
-// Backend lehnt einen deaktivierten Index ohnehin serverseitig ab.
+// DAX und MDAX waren seit dem 22.09.2026 abgeschaltet, weil FMP
+// Deutschland/XETRA erst ab dem Ultimate-Plan abdeckt und deutsche Ticker
+// durchgehend HTTP 402 lieferten. Seit dem 20.10.2026 liegt der
+// Ultimate-Schluessel vor (rund 6850 Tageskurse ab 2000, Abschluesse in
+// EUR), dazu kommen Methodik 4 mit dem Heimatindex und der
+// Kollisionsschutz in validate-tickers - der Grund ist damit entfallen.
+//
+// SDAX bleibt aus: fuer die 70 Titel fehlen die Ticker-Symbole, die
+// Tabelle index_constituents hat dafuer keine Zeilen. Das Backend lehnt
+// einen deaktivierten Index ohnehin serverseitig ab.
 export const SUPPORTED_INDICES: IndexOption[] = [
-  { id: 'dax', label: 'DAX', enabled: false },
-  { id: 'mdax', label: 'MDAX', enabled: false },
+  { id: 'dax', label: 'DAX', enabled: true },
+  { id: 'mdax', label: 'MDAX', enabled: true },
   { id: 'sdax', label: 'SDAX', enabled: false },
   { id: 'sp500', label: 'S&P 500', enabled: true },
   { id: 'nasdaq100', label: 'NASDAQ 100', enabled: true },
