@@ -456,6 +456,17 @@ const TableRow = memo(function TableRow({
             <span className="h-5 w-5 flex-shrink-0" />
           )}
           <span className="truncate font-analyst text-memo-ink">{r.ticker}</span>
+          {/* Nur deutsche Werte bekommen ein Kennzeichen: sie werden gegen
+              den DAX gemessen, nicht gegen den S&P 500. US ist der
+              Normalfall - ein Abzeichen an 500 Zeilen trüge nichts bei. */}
+          {r.region === 'DE' && (
+            <span
+              className="flex-shrink-0 rounded border border-memo-line px-1 text-[10px] font-medium text-memo-muted"
+              title="Region Deutschland: gemessen gegen den DAX"
+            >
+              DE
+            </span>
+          )}
         </button>
       </td>
       <td className="px-2 py-1.5">

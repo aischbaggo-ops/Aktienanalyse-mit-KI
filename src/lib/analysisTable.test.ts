@@ -10,6 +10,7 @@ import {
   emptyRow,
   formatPrice,
   hasKo,
+  INDEX_FILTERS,
   newsBlocked,
   nextSort,
   normalizeRow,
@@ -168,5 +169,44 @@ describe('Alle Analysen: Index-Filter', () => {
     expect(ALL_ANALYSES_SELECT).toContain('indices')
     expect(ALL_ANALYSES_SELECT).toContain('score_total')
     expect(ALL_ANALYSES_SELECT).not.toMatch(/chart_data|criteria|\*/)
+  })
+})
+
+describe('Alle Analysen: getrennt nach Region', () => {
+  const list = [
+    row('AAPL', 69, { region: 'US', indices: ['dowjones', 'nasdaq100', 'sp500'] }),
+    row('ADS.DE', 72, { region: 'DE', indices: ['dax'] }),
+    row('FRE.DE', 61, { region: 'DE', indices: ['dax', 'mdax'] }),
+    row('NEM.DE', 66, { region: 'DE', indices: ['mdax'] }),
+    // Deutscher Wert ohne geladenen Index (z. B. spaeter ein SDAX-Titel,
+    // bevor die SDAX-Liste existiert): erscheint ueber die Region.
+    row('XYZ.DE', 50, { region: 'DE', indices: null }),
+    row('SLS', 26, { region: 'US', indices: null }),
+  ]
+  const t = (r: AnalysisTableRow[]) => r.map((x) => x.ticker)
+
+  it('"USA" zeigt keine DAX-Werte, obwohl sie jetzt einen Index haben', () => {
+    // Vor der Umstellung hiess "us" "hat irgendeinen Index" - ADS.DE
+    // waere unter USA aufgetaucht.
+    expect(t(filterByIndex(list, 'us'))).toEqual(['AAPL'])
+  })
+
+  it('"Deutschland" geht ueber die Region, auch ohne Index', () => {
+    expect(t(filterByIndex(list, 'de'))).toEqual(['ADS.DE', 'FRE.DE', 'NEM.DE', 'XYZ.DE'])
+  })
+
+  it('DAX und MDAX einzeln; FRE.DE steht in beiden', () => {
+    expect(t(filterByIndex(list, 'dax'))).toEqual(['ADS.DE', 'FRE.DE'])
+    expect(t(filterByIndex(list, 'mdax'))).toEqual(['FRE.DE', 'NEM.DE'])
+  })
+
+  it('"Alle" mischt beide Regionen und sagt das im Namen', () => {
+    expect(filterByIndex(list, 'all')).toHaveLength(6)
+    expect(INDEX_FILTERS.find((f) => f.value === 'all')?.label).toMatch(/gemischt/)
+  })
+
+  it('jede Tabelle laedt die Region mit', () => {
+    expect(ANALYSIS_TABLE_SELECT.split(',').map((c) => c.trim())).toContain('region')
+    expect(emptyRow('X').region).toBeNull()
   })
 })
