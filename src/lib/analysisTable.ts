@@ -28,6 +28,7 @@ export const ANALYSIS_TABLE_SELECT = [
   'ko_count',
   'news_status',
   'methodik_version',
+  'region',
 ].join(', ')
 
 export interface AnalysisTableRow {
@@ -55,8 +56,14 @@ export interface AnalysisTableRow {
   // Bewertungsmethodik der gespeicherten Analyse (2 seit #35; aeltere Zeilen
   // ohne data_flags liefert die View als 1).
   methodik_version: number | null
-  // Indexzugehoerigkeit (sp500, nasdaq100, dowjones); nur auf "Alle
-  // Analysen" geladen (ALL_ANALYSES_SELECT).
+  // Region der Analyse (Methodik 4): 'US' oder 'DE'. Bestimmt den
+  // Vergleichsindex (S&P 500 bzw. DAX), die Krisenfenster und die
+  // CAGR-Schwelle - Scores verschiedener Regionen sind deshalb nur bedingt
+  // vergleichbar. Zeilen ohne Eintrag leitet die View aus der
+  // Indexzugehoerigkeit ab (Migration 20261024090000).
+  region: string | null
+  // Indexzugehoerigkeit (sp500, nasdaq100, dowjones, dax, mdax); nur auf
+  // "Alle Analysen" geladen (ALL_ANALYSES_SELECT).
   indices?: string[] | null
   // Nur fuer Zeilen mit status 'error', separat aus stock_analyses geladen
   // (die View enthaelt bewusst keine Fehlertexte), siehe ERROR_INFO_SELECT.
@@ -107,6 +114,7 @@ export function emptyRow(ticker: string): AnalysisTableRow {
     ko_count: null,
     news_status: null,
     methodik_version: null,
+    region: null,
   }
 }
 
@@ -248,20 +256,35 @@ export function recentSince(range: RecentRange, nowMs: number): string {
 // "Alle Analysen": Tabellenspalten plus Indexzugehoerigkeit.
 export const ALL_ANALYSES_SELECT = `${ANALYSIS_TABLE_SELECT}, indices`
 
-export type IndexFilter = 'us' | 'sp500' | 'nasdaq100' | 'dowjones' | 'all'
+export type IndexFilter = 'us' | 'sp500' | 'nasdaq100' | 'dowjones' | 'de' | 'dax' | 'mdax' | 'all'
 
+// Getrennt nach Region (Michaels Entscheidung vom 20.10.2026): ein DAX-Wert
+// wird gegen den DAX gemessen, ein US-Wert gegen den S&P 500, mit eigenen
+// Krisenfenstern und eigener CAGR-Schwelle. "Alle" mischt beides und sagt
+// das auch.
 export const INDEX_FILTERS: { value: IndexFilter; label: string }[] = [
-  { value: 'us', label: 'US-Indizes (S&P 500, NASDAQ 100, Dow Jones)' },
+  { value: 'us', label: 'USA (S&P 500, NASDAQ 100, Dow Jones)' },
   { value: 'sp500', label: 'S&P 500' },
   { value: 'nasdaq100', label: 'NASDAQ 100' },
   { value: 'dowjones', label: 'Dow Jones' },
-  { value: 'all', label: 'Alle, auch ohne Index (z. B. Tests)' },
+  { value: 'de', label: 'Deutschland (DAX, MDAX)' },
+  { value: 'dax', label: 'DAX' },
+  { value: 'mdax', label: 'MDAX' },
+  { value: 'all', label: 'Alle Regionen gemischt, auch ohne Index' },
 ]
 
-// Standard "us": blendet Analysen ohne Indexzugehoerigkeit aus (z.B. den
-// Testeintrag SLS).
+const US_INDICES = ['sp500', 'nasdaq100', 'dowjones']
+
+// Standard "us": nur Mitglieder der US-Indizes. Blendet Analysen ohne
+// Indexzugehoerigkeit aus (z.B. den Testeintrag SLS) und - seit indices
+// auch DAX und MDAX enthaelt - die deutschen Werte. Vorher hiess "us"
+// schlicht "hat irgendeinen Index"; das haette DAX-Werte unter "USA"
+// gezeigt.
+// "de" geht ueber die Region, nicht ueber den Index: so erscheinen auch
+// deutsche Werte, die in keinem der geladenen Indizes stehen.
 export function filterByIndex(rows: AnalysisTableRow[], filter: IndexFilter): AnalysisTableRow[] {
   if (filter === 'all') return rows
-  if (filter === 'us') return rows.filter((r) => (r.indices?.length ?? 0) > 0)
+  if (filter === 'us') return rows.filter((r) => r.indices?.some((i) => US_INDICES.includes(i)) ?? false)
+  if (filter === 'de') return rows.filter((r) => r.region === 'DE')
   return rows.filter((r) => r.indices?.includes(filter) ?? false)
 }
