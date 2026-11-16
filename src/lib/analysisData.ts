@@ -2,6 +2,7 @@
 import { supabase } from './supabase'
 import { ERROR_INFO_SELECT, type AnalysisTableRow } from './analysisTable'
 import { generateAnalysisPdf } from '../utils/pdfExport'
+import { REMOVE_CHUNK_SIZE, chunk, removalOutcome, type RemovalResult } from './watchlistRemoval'
 
 // Zeilen mit status 'error' (z.B. FDXF, HONA, SPCX): Code und oeffentliche
 // Meldung aus stock_analyses nachladen, damit die Tabelle "nicht bewertbar"
@@ -51,4 +52,28 @@ export async function addTickersToWatchlist(userId: string, tickers: string[]): 
     return error.message
   }
   return null
+}
+
+// Ticker von der Watchlist nehmen. Die Analysen bleiben, nur der Eintrag geht.
+// .select('ticker') liefert die TATSAECHLICH geloeschten Zeilen zurueck: wird
+// eine Zeile aus Berechtigungsgruenden uebersprungen, meldet Supabase keinen
+// Fehler (siehe removalOutcome).
+export async function removeTickersFromWatchlist(userId: string, tickers: string[]): Promise<RemovalResult> {
+  const removed: string[] = []
+  let dbError: string | null = null
+  for (const part of chunk(tickers, REMOVE_CHUNK_SIZE)) {
+    const { data, error } = await supabase
+      .from('watchlists')
+      .delete()
+      .eq('user_id', userId)
+      .in('ticker', part)
+      .select('ticker')
+    if (error) {
+      console.error('Watchlist delete fehlgeschlagen:', error)
+      dbError = error.message
+      break
+    }
+    removed.push(...((data ?? []) as { ticker: string }[]).map((r) => r.ticker))
+  }
+  return removalOutcome(tickers, removed, dbError)
 }

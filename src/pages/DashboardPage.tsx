@@ -23,7 +23,8 @@ import {
   type RecentRange,
 } from '../lib/analysisTable'
 import { scoreBorderClass } from '../lib/score'
-import { addTickersToWatchlist, attachErrorInfo, downloadAnalysisPdf } from '../lib/analysisData'
+import { addTickersToWatchlist, attachErrorInfo, downloadAnalysisPdf, removeTickersFromWatchlist } from '../lib/analysisData'
+import { removalConfirmText } from '../lib/watchlistRemoval'
 import { MAX_AGE_OPTIONS, maxAgeCostHint, readMaxAge, storeMaxAge, type MaxAge } from '../lib/preferences'
 
 
@@ -79,6 +80,8 @@ export function DashboardPage() {
   const [watchlistView, setWatchlistView] = useState<WatchlistView>(readWatchlistView)
   const [selectedTickers, setSelectedTickers] = useState<Set<string>>(new Set())
   const [watchlistBatchError, setWatchlistBatchError] = useState<string | null>(null)
+  const [removeBusy, setRemoveBusy] = useState(false)
+  const [removeError, setRemoveError] = useState<string | null>(null)
 
   const [downloadingTicker, setDownloadingTicker] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
@@ -201,6 +204,24 @@ export function DashboardPage() {
     // still nichts zu tun.
     const err = await batch.prepare([...selectedTickers], { forceRefresh: true })
     if (err) setWatchlistBatchError(err)
+  }
+
+  // Ausgewaehlte Werte von der Watchlist nehmen (16.11.2026: bisher ging das
+  // nur ueber den Stern auf der Analyse-Seite des einzelnen Werts). Mit
+  // Rueckfrage; die Analysen bleiben. Was die Datenbank NICHT entfernt hat,
+  // bleibt ausgewaehlt und wird gemeldet.
+  async function removeSelectedFromWatchlist() {
+    if (!user || batchBusy || removeBusy) return
+    const tickers = [...selectedTickers]
+    if (tickers.length === 0) return
+    if (!window.confirm(removalConfirmText(tickers))) return
+    setRemoveBusy(true)
+    setRemoveError(null)
+    const result = await removeTickersFromWatchlist(user.id, tickers)
+    setRemoveError(result.error)
+    setSelectedTickers(new Set(result.missing))
+    await loadWatchlist()
+    setRemoveBusy(false)
   }
 
   // Auswahl gesperrt, solange ein Batch bestaetigt wird oder laeuft. Nach
@@ -459,9 +480,17 @@ export function DashboardPage() {
               >
                 Batch-Analyse starten
               </button>
+              <button
+                onClick={removeSelectedFromWatchlist}
+                disabled={removeBusy}
+                className="rounded-md border border-memo-line px-3 py-1 text-xs font-medium text-memo-minusText transition-colors hover:border-memo-minusText disabled:opacity-50"
+              >
+                {removeBusy ? 'Entferne...' : `${selectedTickers.size} von der Watchlist entfernen`}
+              </button>
             </>
           )}
           {watchlistBatchError && <span className="text-xs text-memo-minusText">{watchlistBatchError}</span>}
+          {removeError && <span role="alert" className="text-xs text-memo-minusText">{removeError}</span>}
         </div>
 
         {batch.forceRefresh && (
