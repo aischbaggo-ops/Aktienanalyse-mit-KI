@@ -178,11 +178,16 @@ export interface TableFilter {
   search: string
   assessment: Assessment | ''
   minScore: number | null
+  // "Score unter": echt kleiner. Zum Aufraeumen der Watchlist (alles unter
+  // der 67er-Grenze). Zeilen OHNE Gesamtscore fallen auch hier heraus - eine
+  // frisch hinzugefuegte, noch nie analysierte Watchlist-Zeile soll nicht
+  // unter "schwache Werte" erscheinen und versehentlich mit entfernt werden.
+  maxScore: number | null
 }
 
-export const EMPTY_FILTER: TableFilter = { search: '', assessment: '', minScore: null }
+export const EMPTY_FILTER: TableFilter = { search: '', assessment: '', minScore: null, maxScore: null }
 
-// Eingabe "Score ab": leer oder keine Zahl = kein Filter.
+// Eingabe "Score ab" und "Score unter": leer oder keine Zahl = kein Filter.
 export function parseMinScore(input: string): number | null {
   const t = input.trim().replace(',', '.')
   if (t === '') return null
@@ -196,7 +201,7 @@ function sortValue(r: AnalysisTableRow, key: SortKey): string | number | null {
   return key === 'name' || key === 'sector' ? String(v).toLowerCase() : (v as string | number)
 }
 
-// Suche (Ticker, Firma, Sektor, Branche), Einschaetzung und "Score ab".
+// Suche (Ticker, Firma, Sektor, Branche), Einschaetzung, "Score ab" und "Score unter".
 // Zeilen ohne Gesamtscore fallen bei aktivem Score- oder
 // Einschaetzungs-Filter heraus und stehen bei jeder Sortierung am Ende.
 export function applyTableView(rows: AnalysisTableRow[], filter: TableFilter, sort: SortState): AnalysisTableRow[] {
@@ -204,6 +209,7 @@ export function applyTableView(rows: AnalysisTableRow[], filter: TableFilter, so
   const filtered = rows.filter((r) => {
     if (q && ![r.ticker, r.name, r.sector, r.industry].some((v) => v?.toLowerCase().includes(q))) return false
     if (filter.minScore !== null && (r.score_total == null || r.score_total < filter.minScore)) return false
+    if (filter.maxScore !== null && (r.score_total == null || r.score_total >= filter.maxScore)) return false
     if (filter.assessment && (r.score_total == null || scoreLabel(r.score_total) !== filter.assessment)) return false
     return true
   })

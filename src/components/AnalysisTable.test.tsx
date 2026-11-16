@@ -50,11 +50,12 @@ const html = renderToStaticMarkup(
 )
 
 describe('AnalysisTable', () => {
-  it('zeigt Werkzeugleiste: Suche, Einschätzung, Score ab, Umbruch, Spaltenbreiten, Zähler, Alle auswählen', () => {
+  it('zeigt Werkzeugleiste: Suche, Einschätzung, Score ab, Score unter, Umbruch, Spaltenbreiten, Zähler, Alle auswählen', () => {
     for (const text of [
       'Suche: Ticker, Firma, Sektor',
       'Alle Einschätzungen',
       'Score ab',
+      'Score unter',
       'Text abschneiden statt umbrechen',
       'Spaltenbreiten zurücksetzen',
       '4 von 4 angezeigt',

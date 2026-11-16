@@ -133,6 +133,7 @@ export function AnalysisTable({
   const [search, setSearch] = useState('')
   const [assessment, setAssessment] = useState<Assessment | ''>('')
   const [minScoreInput, setMinScoreInput] = useState('')
+  const [maxScoreInput, setMaxScoreInput] = useState('')
   const [sort, setSort] = useState<SortState>(DEFAULT_SORT)
   const [truncate, setTruncate] = useState(() => readTruncate(storageKey))
   const [widths, setWidths] = useState<Record<string, number>>(() => readWidths(storageKey))
@@ -165,8 +166,13 @@ export function AnalysisTable({
   // Nur neu filtern/sortieren, wenn sich Daten oder Filter aendern - nicht
   // bei jedem Haken (INP bei ~250 Zeilen).
   const shown = useMemo(
-    () => applyTableView(rows, { search, assessment, minScore: parseMinScore(minScoreInput) }, sort),
-    [rows, search, assessment, minScoreInput, sort],
+    () =>
+      applyTableView(
+        rows,
+        { search, assessment, minScore: parseMinScore(minScoreInput), maxScore: parseMinScore(maxScoreInput) },
+        sort,
+      ),
+    [rows, search, assessment, minScoreInput, maxScoreInput, sort],
   )
   const selectable = shown.filter((r) => !isRowLocked?.(r.ticker)).map((r) => r.ticker)
   const header = headerState(selected, selectable)
@@ -201,7 +207,7 @@ export function AnalysisTable({
     }
   }
   const tableWidth = COLUMNS.reduce((s, c) => s + (widths[c.id] ?? c.width), 0)
-  const filtersActive = search !== '' || assessment !== '' || minScoreInput !== ''
+  const filtersActive = search !== '' || assessment !== '' || minScoreInput !== '' || maxScoreInput !== ''
   const cellText = truncate ? 'truncate whitespace-nowrap' : 'whitespace-normal break-words'
 
   function resetWidths() {
@@ -218,6 +224,7 @@ export function AnalysisTable({
     setSearch('')
     setAssessment('')
     setMinScoreInput('')
+    setMaxScoreInput('')
     setSort(DEFAULT_SORT)
   }
 
@@ -254,6 +261,19 @@ export function AnalysisTable({
             max={100}
             value={minScoreInput}
             onChange={(e) => setMinScoreInput(e.target.value)}
+            placeholder="–"
+            className="w-16 rounded-md border border-memo-line px-2 py-1 text-memo-ink"
+          />
+        </label>
+        <label className="flex items-center gap-1.5">
+          Score unter
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={100}
+            value={maxScoreInput}
+            onChange={(e) => setMaxScoreInput(e.target.value)}
             placeholder="–"
             className="w-16 rounded-md border border-memo-line px-2 py-1 text-memo-ink"
           />

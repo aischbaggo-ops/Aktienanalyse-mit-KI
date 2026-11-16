@@ -80,6 +80,23 @@ describe('Filter', () => {
     expect(view({ minScore: 0 })).not.toContain('FDXF')
   })
 
+  it('Score unter: echt kleiner, die Grenze selbst faellt heraus', () => {
+    // Watchlist aufraeumen: "unter 67" darf einen Wert mit genau 67 nicht
+    // zeigen, sonst wuerde die Schwelle selbst mit entfernt.
+    expect(view({ maxScore: 70 })).toEqual(['PSKY'])
+    expect(view({ maxScore: 71 })).toEqual(['AAPL', 'PSKY'])
+    expect(view({ maxScore: 100 })).toEqual(['COST', 'MSFT', 'AAPL', 'PSKY'])
+  })
+
+  it('Score unter blendet Zeilen ohne Score aus (noch nie analysierte Werte)', () => {
+    expect(view({ maxScore: 100 })).not.toContain('FDXF')
+  })
+
+  it('Score ab und Score unter ergeben zusammen ein Band', () => {
+    expect(view({ minScore: 60, maxScore: 80 })).toEqual(['MSFT', 'AAPL'])
+    expect(view({ minScore: 80, maxScore: 60 })).toEqual([])
+  })
+
   it('parseMinScore: leer = kein Filter, Komma erlaubt', () => {
     expect(parseMinScore('')).toBeNull()
     expect(parseMinScore('x')).toBeNull()
